@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   getData: () => ipcRenderer.invoke('get-data'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
   sync: () => ipcRenderer.invoke('sync'),
   login: () => ipcRenderer.invoke('login'),
   logout: () => ipcRenderer.invoke('logout'),

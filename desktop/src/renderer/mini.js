@@ -23,8 +23,9 @@ function render() {
   let sub = s.subText;
   if (!sub && data.needLogin) sub = 'Войдите в BilimClass заново (откройте расписание)';
 
+  const ready = data.update && data.update.status === 'ready';
   // Остальное перерисовываем только при изменениях
-  const signature = JSON.stringify([s.dayName, s.dateText, s.status, sub, s.listTitle, s.listDate, s.rows,
+  const signature = JSON.stringify([ready, s.dayName, s.dateText, s.status, sub, s.listTitle, s.listDate, s.rows,
     s.lessons.map((l) => [l.start, l.end, l.title])]);
   if (signature === lastSignature) return;
   lastSignature = signature;
@@ -35,6 +36,8 @@ function render() {
   $('sub').textContent = sub || '';
   $('sub').hidden = !sub;
   $('listTitle').textContent = s.listTitle;
+  $('hint').textContent = ready ? '⬆ Готово обновление — нажмите, чтобы перезапустить' : 'Нажмите на урок, чтобы задать домашку';
+  $('hint').className = ready ? 'hint update' : 'hint';
 
   const list = $('list');
   list.textContent = '';
@@ -64,6 +67,9 @@ function render() {
 
 $('open').addEventListener('click', () => window.api.openMain());
 $('hide').addEventListener('click', () => window.api.hideMini());
+$('hint').addEventListener('click', () => {
+  if (data.update && data.update.status === 'ready') window.api.installUpdate();
+});
 
 window.api.onData((d) => {
   data = d;

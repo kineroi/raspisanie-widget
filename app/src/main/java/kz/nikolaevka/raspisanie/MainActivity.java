@@ -58,7 +58,94 @@ public class MainActivity extends Activity {
         ScheduleWidget.updateAll(this);
         render();
         if (Bilim.isConnected(this)) startSync();
+        checkUpdates(false);
     }
+
+    // ---------- Обновление приложения ----------
+
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private String updateStatus = null;
+    private long downloadId = -1;
+
+    private void checkUpdates(final boolean force) {
+        new Thread(() -> {
+            final boolean has = Updater.check(getApplicationContext(), force);
+            runOnUiThread(() -> {
+                if (force && !has) {
+                    Toast.makeText(this, "Установлена последняя версия", Toast.LENGTH_SHORT).show();
+                }
+                render();
+            });
+        }).start();
+    }
+
+    private View updateCard() {
+        LinearLayout card = card(PURPLE);
+        LinearLayout.LayoutParams cp = (LinearLayout.LayoutParams) card.getLayoutParams();
+        cp.topMargin = dp(12);
+        card.addView(text("Доступна новая версия " + Updater.updateVersion(this), 16, Color.WHITE, true));
+        card.addView(text(updateStatus != null ? updateStatus
+                : "Расписание, вход и ключ сохранятся. Android спросит подтверждение установки.", 13, 0xFFE1BEE7, false));
+        if (downloadId < 0) {
+            Button b = button("Обновить", Color.WHITE, PURPLE_DARK);
+            b.setOnClickListener(v -> startUpdate());
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+            lp.topMargin = dp(8);
+            card.addView(b, lp);
+        }
+        return card;
+    }
+
+    private void startUpdate() {
+        if (!getPackageManager().canRequestPackageInstalls()) {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Нужно разрешение")
+                    .setMessage("Android попросит разрешить этому приложению устанавливать обновления. "
+                            + "Включите «Разрешить установку из этого источника», вернитесь назад и снова нажмите «Обновить».")
+                    .setPositiveButton("Открыть настройки", (d, w) -> startActivity(new Intent(
+                            android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            android.net.Uri.parse("package:" + getPackageName()))))
+                    .setNegativeButton("Отмена", null)
+                    .show();
+            return;
+        }
+        try {
+            downloadId = Updater.startDownload(this);
+        } catch (Exception e) {
+            updateStatus = "Не удалось начать загрузку. Проверьте интернет.";
+            render();
+            return;
+        }
+        updateStatus = "Загружаю… 0%";
+        render();
+        handler.postDelayed(downloadPoll, 700);
+    }
+
+    private final Runnable downloadPoll = new Runnable() {
+        @Override
+        public void run() {
+            int p = Updater.progress(MainActivity.this, downloadId);
+            if (p == 101) {
+                updateStatus = "Скачано. Нажмите «Обновить» в окне Android.";
+                long id = downloadId;
+                downloadId = -1;
+                render();
+                if (!Updater.openInstaller(MainActivity.this, id)) {
+                    updateStatus = "Не удалось открыть установку. Попробуйте ещё раз.";
+                    render();
+                }
+            } else if (p < 0) {
+                downloadId = -1;
+                updateStatus = "Загрузка не удалась. Проверьте интернет и попробуйте ещё раз.";
+                render();
+            } else {
+                updateStatus = "Загружаю… " + p + "%";
+                render();
+                handler.postDelayed(this, 700);
+            }
+        }
+    };
 
     private void startSync() {
         if (syncing) return;
@@ -98,6 +185,7 @@ public class MainActivity extends Activity {
         scroll.addView(col);
 
         col.addView(text("Моё расписание", 24, PURPLE_DARK, true));
+        if (Updater.hasUpdate(this) || updateStatus != null) col.addView(updateCard());
         col.addView(bilimCard());
         col.addView(geminiCard());
 
@@ -168,6 +256,19 @@ public class MainActivity extends Activity {
             lp.topMargin = dp(16);
             col.addView(add, lp);
         }
+
+        LinearLayout vrow = new LinearLayout(this);
+        vrow.setOrientation(LinearLayout.HORIZONTAL);
+        vrow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView ver = text("Версия " + Updater.installedName(this), 12, GRAY, false);
+        vrow.addView(ver, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Button chk = button("Проверить обновления", Color.WHITE, PURPLE_DARK);
+        chk.setOnClickListener(v -> checkUpdates(true));
+        vrow.addView(chk, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)));
+        LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        vp.topMargin = dp(16);
+        col.addView(vrow, vp);
 
         setContentView(scroll);
         final int y = scrollY;

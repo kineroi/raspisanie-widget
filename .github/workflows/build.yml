@@ -34,8 +34,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ github.run_number }}" raspisanie-widget.apk \
-            --title "Расписание, версия ${{ github.run_number }}" \
+          gh release create "v3.0.${{ github.run_number }}" raspisanie-widget.apk \
+            --title "Расписание, версия 3.0.${{ github.run_number }}" \
             --notes "Телефон (Android): raspisanie-widget.apk. Компьютер (Windows): raspisanie-setup.exe." \
             --draft
 
@@ -57,7 +57,10 @@ jobs:
         run: npm test
 
       - name: Собрать установщик
-        run: npm run dist
+        run: |
+          # номер версии = номер сборки: по нему программа понимает, что вышло обновление
+          npm version "3.0.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+          npm run dist
 
       - name: Самопроверка программы
         run: |
@@ -72,5 +75,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "v${{ github.run_number }}" dist/raspisanie-setup.exe --clobber
-          gh release edit "v${{ github.run_number }}" --draft=false --latest
+          # latest.yml и .blockmap нужны программе для автообновления
+          gh release upload "v3.0.${{ github.run_number }}" \
+            dist/raspisanie-setup.exe dist/raspisanie-setup.exe.blockmap dist/latest.yml --clobber
+          gh release edit "v3.0.${{ github.run_number }}" --draft=false --latest

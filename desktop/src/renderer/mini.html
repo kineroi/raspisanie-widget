@@ -47,6 +47,7 @@
     .lesson.current { background: #fff; color: var(--purple-dark); font-weight: 700; }
     .lesson.next { color: var(--accent); font-weight: 700; border-color: var(--accent); background: rgba(255,255,255,.1); }
     .hint { color: var(--lilac-2); font-size: 10px; margin-top: 4px; }
+    .hint.update { color: var(--accent); font-weight: 700; cursor: pointer; -webkit-app-region: no-drag; }
   </style>
 </head>
 <body>
@@ -69,7 +70,7 @@
     </div>
     <div class="title" id="listTitle"></div>
     <div id="list"></div>
-    <div class="hint">Нажмите на урок, чтобы задать домашку</div>
+    <div class="hint" id="hint">Нажмите на урок, чтобы задать домашку</div>
   </div>
   <script src="../shared/logic.js"></script>
   <script src="mini.js"></script>

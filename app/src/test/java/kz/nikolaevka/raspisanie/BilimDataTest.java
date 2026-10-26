@@ -163,6 +163,13 @@ public class BilimDataTest {
     }
 
     @Test
+    public void updateVersionFromTag() {
+        assertEquals(12, Updater.codeFromTag("v3.0.12"));
+        assertEquals(5, Updater.codeFromTag("v5"));
+        assertEquals(0, Updater.codeFromTag(""));
+    }
+
+    @Test
     public void compactClassNames() {
         assertEquals("7А", BilimData.compactClass("7 А"));
         assertEquals("9 класс", BilimData.compactClass("9 класс"));
