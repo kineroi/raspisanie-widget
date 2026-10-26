@@ -207,6 +207,25 @@ final class BilimApi {
         }
     }
 
+    /** GET с дополнительными заголовками (для сервиса журнала нужен свой пропуск и «external: 1»). */
+    static JSONObject getJson(String url, String token, String schoolId, java.util.Map<String, String> extra)
+            throws IOException {
+        HttpURLConnection c = open("GET", url, token, schoolId);
+        try {
+            if (extra != null) for (java.util.Map.Entry<String, String> e : extra.entrySet()) {
+                c.setRequestProperty(e.getKey(), e.getValue());
+            }
+            String body = finish(c);
+            try {
+                return new JSONObject(body);
+            } catch (JSONException e) {
+                throw new IOException("Неожиданный ответ BilimClass");
+            }
+        } finally {
+            c.disconnect();
+        }
+    }
+
     private static String request(String method, String url, String token, String jsonBody) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         try {

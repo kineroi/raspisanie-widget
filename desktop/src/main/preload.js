@@ -24,4 +24,9 @@ contextBridge.exposeInMainWorld('api', {
   sendHomework: (req) => ipcRenderer.invoke('send-homework', req),
   deleteFile: (date, fileId) => ipcRenderer.invoke('delete-file', date, fileId),
   onData: (cb) => ipcRenderer.on('data-changed', (_e, data) => cb(data)),
+  openGrades: () => ipcRenderer.invoke('open-grades'),
+  gradesData: () => ipcRenderer.invoke('grades-data'),
+  gradesRefresh: () => ipcRenderer.invoke('grades-refresh'),
+  setGradeAlerts: (on) => ipcRenderer.invoke('set-grade-alerts', on),
+  onGrades: (cb) => ipcRenderer.on('grades-changed', () => cb()),
 });

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Успеваемость</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { background: var(--purple-light); }
+    .page { max-width: 980px; margin: 0 auto; padding: 20px 20px 40px; }
+    h1 { color: var(--purple-dark); font-size: 24px; margin: 0; }
+    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .top .grow { min-width: 200px; }
+    .card { background: #fff; border-radius: 16px; padding: 14px 16px; margin-top: 12px; }
+    .card h2 { margin: 0 0 6px; font-size: 16px; color: var(--purple-dark); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .card h2 .muted { font-size: 13px; font-weight: 400; }
+    .alert { background: #FFF8E1; border: 1px solid #FFD54F; }
+    .alert h2 { color: #8D6E00; }
+    .alert ul { margin: 4px 0 0; padding-left: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: var(--gray); font-weight: 600; padding: 6px 6px; border-bottom: 1px solid #eee; white-space: nowrap; }
+    td { padding: 6px 6px; border-bottom: 1px solid #f3eef6; vertical-align: top; }
+    td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .grade { display: inline-block; min-width: 22px; text-align: center; border-radius: 6px; padding: 1px 6px; font-weight: 700; }
+    .g2 { background: #FFCDD2; color: #B71C1C; } .g3 { background: #FFE0B2; color: #8D4A00; }
+    .g4 { background: #E1F5FE; color: #01579B; } .g5 { background: #C8E6C9; color: #1B5E20; }
+    .risk { color: var(--red); font-weight: 600; white-space: nowrap; }
+    .soch { color: var(--gray); }
+    .note { color: var(--gray); font-size: 12px; margin-top: 10px; }
+    label.filter { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+    .badge { background: #FFCDD2; color: #B71C1C; border-radius: 10px; padding: 0 8px; font-size: 12px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="top">
+      <div class="grow">
+        <h1>Успеваемость</h1>
+        <div id="status" class="muted small"></div>
+      </div>
+      <label class="filter"><input type="checkbox" id="onlyRisk"> Только группа риска</label>
+      <button id="refresh" class="primary">Обновить</button>
+    </div>
+    <div id="check"></div>
+    <div id="classes"></div>
+    <div class="note">
+      Оценка: если BilimClass уже рассчитал рекомендуемую — показана она; иначе — расчёт приложения
+      по формуле журнала (ФО 25%, СОР 25%, СОЧ 50%; &lt;40% — 2, 40–64% — 3, 65–84% — 4, от 85% — 5).
+      «прогноз» — пока не все части выставлены. «На СОЧ» — сколько баллов нужно при нынешних ФО и СОР.
+      Оценки учеников хранятся только на этом компьютере в зашифрованном виде.
+    </div>
+  </div>
+  <script src="../shared/logic.js"></script>
+  <script src="../shared/grades.js"></script>
+  <script src="grades.js"></script>
+</body>
+</html>

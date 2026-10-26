@@ -12,6 +12,8 @@ public class SyncJob extends JobService {
             @Override
             public void run() {
                 Bilim.Result r = Bilim.sync(getApplicationContext());
+                // успеваемость — не чаще раза в 6 часов
+                if (r == Bilim.Result.OK) Journals.refreshIfStale(getApplicationContext());
                 jobFinished(params, r == Bilim.Result.NO_NETWORK);
             }
         }).start();

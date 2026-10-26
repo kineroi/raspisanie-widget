@@ -69,7 +69,11 @@ final class Bilim {
 
     /** Выйти: удалить вход и сохранённое расписание. */
     static void logout(Context c) {
+        // ключ Gemini — не часть входа в BilimClass, его сохраняем
+        String aiKey = aiKey(c);
         prefs(c).edit().clear().apply();
+        if (!aiKey.isEmpty()) setAiKey(c, aiKey);
+        Journals.clear(c);
         //noinspection ResultOfMethodCallIgnored
         new File(c.getFilesDir(), CACHE_FILE).delete();
         JobScheduler js = c.getSystemService(JobScheduler.class);
@@ -85,6 +89,25 @@ final class Bilim {
         } catch (Exception e) {
             return Collections.emptyMap();
         }
+    }
+
+    /** Сохранённые ответы BilimClass по неделям (как пришли), или пустой массив. */
+    static JSONArray cachedWeeksRaw(Context c) {
+        File f = new File(c.getFilesDir(), CACHE_FILE);
+        if (!f.exists()) return new JSONArray();
+        try {
+            return new JSONArray(readFile(f));
+        } catch (Exception e) {
+            return new JSONArray();
+        }
+    }
+
+    static String readText(File f) throws IOException {
+        return readFile(f);
+    }
+
+    static void writeText(File f, String s) throws IOException {
+        writeFile(f, s);
     }
 
     /** Источник расписания для виджета и приложения. */

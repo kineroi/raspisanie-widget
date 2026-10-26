@@ -17,8 +17,8 @@ class HttpError extends Error {
   }
 }
 
-async function request(method, url, { token, school, body, contentType } = {}) {
-  const headers = { Accept: 'application/json', 'Accept-Language': 'ru', 'X-Localization': 'ru' };
+async function request(method, url, { token, school, body, contentType, extra } = {}) {
+  const headers = { Accept: 'application/json', 'Accept-Language': 'ru', 'X-Localization': 'ru', ...(extra || {}) };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (school) headers['x-school-id'] = String(school);
   if (contentType) headers['Content-Type'] = contentType;
@@ -174,4 +174,4 @@ function errorText(e) {
   return 'Нет связи с BilimClass. Проверьте интернет.';
 }
 
-module.exports = { HttpError, sync, cachedDays, withToken, saveHomework, deleteFile, errorText };
+module.exports = { API, request, fetchWeek, HttpError, sync, cachedDays, withToken, saveHomework, deleteFile, errorText };

@@ -101,6 +101,13 @@ public class MainActivity extends Activity {
             }
         });
         card.addView(cb);
+        android.widget.CheckBox gcb = new android.widget.CheckBox(this);
+        gcb.setText("Группа риска (пн) и контроль конца четверти");
+        gcb.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        gcb.setTextColor(PURPLE_DARK);
+        gcb.setChecked(Digest.enabled(this));
+        gcb.setOnCheckedChangeListener((v, on) -> Digest.setEnabled(this, on));
+        card.addView(gcb);
         if (Reminders.enabled(this) && !notificationsAllowed()) {
             card.addView(text("Уведомления выключены в настройках Android — напоминания не будут видны.",
                     13, 0xFFC62828, false));
@@ -256,6 +263,14 @@ public class MainActivity extends Activity {
         col.addView(text("Моё расписание", 24, PURPLE_DARK, true));
         if (Updater.hasUpdate(this) || updateStatus != null) col.addView(updateCard());
         col.addView(bilimCard());
+        if (Bilim.isConnected(this)) {
+            Button grades = button("📊 Успеваемость", PURPLE, Color.WHITE);
+            grades.setOnClickListener(v -> startActivity(new Intent(this, GradesActivity.class)));
+            LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+            glp.topMargin = dp(10);
+            col.addView(grades, glp);
+        }
         col.addView(geminiCard());
         col.addView(remindersCard());
 

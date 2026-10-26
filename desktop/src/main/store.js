@@ -5,7 +5,7 @@ const { app, safeStorage } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
-const SECRET_KEYS = new Set(['token', 'refresh', 'aiKey']);
+const SECRET_KEYS = new Set(['token', 'refresh', 'aiKey', 'chatToken']);
 let state = null;
 
 const dir = () => app.getPath('userData');
@@ -77,8 +77,35 @@ function writeWeeks(arr) {
   writeAtomic(weeksFile(), JSON.stringify(arr));
 }
 
+// Оценки учеников — только в зашифрованном виде
+const gradesFile = () => path.join(dir(), 'grades.bin');
+
+function readGrades() {
+  try {
+    const raw = fs.readFileSync(gradesFile());
+    const text = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(raw) : raw.toString('utf8');
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function writeGrades(obj) {
+  const text = JSON.stringify(obj);
+  const data = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(text) : Buffer.from(text, 'utf8');
+  fs.mkdirSync(dir(), { recursive: true });
+  const tmp = gradesFile() + '.tmp';
+  fs.writeFileSync(tmp, data);
+  fs.renameSync(tmp, gradesFile());
+}
+
 function clearBilim() {
-  set({ token: null, refresh: null, school: null, lastSync: null, needLogin: null });
+  try {
+    fs.unlinkSync(gradesFile());
+  } catch {
+    // файла могло и не быть
+  }
+  set({ token: null, refresh: null, school: null, lastSync: null, needLogin: null, chatToken: null, userId: null, gradesAt: null });
   try {
     fs.unlinkSync(weeksFile());
   } catch {
@@ -86,4 +113,4 @@ function clearBilim() {
   }
 }
 
-module.exports = { get, set, readWeeks, writeWeeks, clearBilim };
+module.exports = { get, set, readWeeks, writeWeeks, readGrades, writeGrades, clearBilim };

@@ -50,6 +50,15 @@
             android:name=".Reminders$Receiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".Digest$Receiver"
+            android:exported="false" />
+
+        <activity
+            android:name=".GradesActivity"
+            android:exported="false"
+            android:label="Успеваемость" />
+
         <service
             android:name=".SyncJob"
             android:exported="false"
