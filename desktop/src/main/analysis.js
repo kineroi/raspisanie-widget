@@ -45,9 +45,16 @@ async function load(quarter) {
 
 const textKey = (cls, quarter) => `${loaded ? loaded.eduYear : L.eduYear(new Date())}|${quarter}|${cls}`;
 
+// Один раз заменить ранее введённое название школы на полное (дальше — как отредактирует учитель)
+function migrateSchool() {
+  if (store.get('anSchoolV2', false)) return;
+  store.set({ anSchool: A.SCHOOL, anSchoolV2: true });
+}
+
 function settings() {
+  migrateSchool();
   return {
-    school: store.get('anSchool', ''),
+    school: store.get('anSchool', A.SCHOOL),
     subject: store.get('anSubject', 'Иностранный язык'),
     reasons: store.get('anReasons', A.REASONS),
     plan: store.get('anPlan', A.PLAN),

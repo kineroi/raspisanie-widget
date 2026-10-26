@@ -62,6 +62,20 @@ async function loadSettings() {
   $('folder').textContent = s.folder;
 }
 
+$('schoolReset').addEventListener('click', () => {
+  $('school').value = A.SCHOOL;
+  window.api.anSaveSettings({ school: A.SCHOOL });
+});
+$('back').addEventListener('click', async () => {
+  // сохранить недописанные тексты и вернуться к расписанию
+  for (const cls of Object.keys(saveTimers)) {
+    clearTimeout(saveTimers[cls]);
+    if (texts[cls]) await window.api.anSetTexts(cls, quarter(), texts[cls]);
+  }
+  await window.api.openMain();
+  window.close();
+});
+
 for (const id of ['school', 'subject', 'reasons', 'plan']) {
   $(id).addEventListener('change', () => window.api.anSaveSettings({ [id]: $(id).value }));
 }
@@ -92,12 +106,35 @@ function workBlock(a, it, refresh) {
   const box = el('div', 'work');
   const head = el('div', 'row');
   head.style.justifyContent = 'space-between';
-  head.append(el('h3', '', `${it.label}${t.unit ? ` «${t.unit}»` : ''}`));
+  const date = it.date ? ` · ${it.date.slice(8)}.${it.date.slice(5, 7)}` : '';
+  head.append(el('h3', '', `${it.label}${date}${t.unit ? ` «${t.unit}»` : ''}`));
   const key = `${cls}|${it.label}`;
   const picked = files[key] || [];
-  const fileLine = el('div', 'files', picked.length
-    ? `Работа: ${picked.map((p) => p.split(/[\\/]/).pop()).join(', ')}`
-    : t.files && t.files.length ? `Тексты подготовлены по: ${t.files.join(', ')}` : 'Работа не прикреплена');
+  const fileLine = el('div', 'files');
+  if (picked.length) {
+    fileLine.append('Работа:');
+    picked.forEach((p, i) => {
+      const chip = el('span', 'chip', p.split(/[\\/]/).pop());
+      const del = button('✕', '', () => {
+        files[key] = picked.filter((_, j) => j !== i);
+        refresh();
+      });
+      del.title = 'Убрать этот файл';
+      chip.append(del);
+      fileLine.append(chip);
+    });
+  } else if (t.files && t.files.length) {
+    fileLine.append(`Тексты подготовлены по: ${t.files.join(', ')}.`);
+    const clear = button('Убрать', 'small', () => {
+      if (!confirm('Убрать работу и подготовленные по ней тексты?')) return;
+      texts[cls].items[it.label] = {};
+      persist(cls);
+      refresh();
+    });
+    fileLine.append(clear);
+  } else {
+    fileLine.append(`Прикрепите работу, которую писали${date ? ` ${date.slice(3)}` : ''}.`);
+  }
   const msg = el('div', 'small');
   const prep = button('✨ Подготовить тексты', 'primary', async () => {
     prep.disabled = true;
