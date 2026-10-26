@@ -71,8 +71,12 @@ public class ScheduleWidget extends AppWidgetProvider {
         if (ids == null || ids.length == 0) return;
 
         LocalDateTime now = LocalDateTime.now();
-        WidgetState s = WidgetState.compute(now);
+        WidgetState s = WidgetState.compute(now, Bilim.source(context));
+        if (s.subText == null && Bilim.needLogin(context)) {
+            s.subText = "Войдите в BilimClass заново (откройте приложение)";
+        }
         manager.updateAppWidget(ids, build(context, s, now));
+        Bilim.schedule(context);
         scheduleNext(context, s.nextUpdate);
     }
 
@@ -94,7 +98,7 @@ public class ScheduleWidget extends AppWidgetProvider {
             v.setViewVisibility(R.id.countdown, View.GONE);
         }
 
-        if (s.subText != null) {
+        if (s.subText != null && !s.subText.isEmpty()) {
             v.setTextViewText(R.id.sub_text, s.subText);
             v.setViewVisibility(R.id.sub_text, View.VISIBLE);
         } else {

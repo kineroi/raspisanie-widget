@@ -17,7 +17,7 @@ final class WidgetState {
             "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"};
     private static final String[] IN_DAY = {
             "В понедельник", "Во вторник", "В среду", "В четверг", "В пятницу", "В субботу", "В воскресенье"};
-    private static final String[] MONTHS = {
+    static final String[] MONTHS = {
             "января", "февраля", "марта", "апреля", "мая", "июня",
             "июля", "августа", "сентября", "октября", "ноября", "декабря"};
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
@@ -44,26 +44,42 @@ final class WidgetState {
         return hm(l.start) + "–" + hm(l.end);
     }
 
+    static String dateText(LocalDate d) {
+        return d.getDayOfMonth() + " " + MONTHS[d.getMonthValue() - 1];
+    }
+
     static WidgetState compute(LocalDateTime now) {
+        return compute(now, Schedule.TEMPLATE);
+    }
+
+    static WidgetState compute(LocalDateTime now, Schedule.Source source) {
         WidgetState s = new WidgetState();
         LocalDate date = now.toLocalDate();
         LocalTime t = now.toLocalTime();
         DayOfWeek dow = date.getDayOfWeek();
 
         s.dayName = DAY_NAMES[dow.getValue() - 1];
-        s.dateText = date.getDayOfMonth() + " " + MONTHS[date.getMonthValue() - 1];
+        s.dateText = dateText(date);
 
-        List<Schedule.Lesson> today = Schedule.forDay(dow);
+        Schedule.Day day = source.day(date);
+        List<Schedule.Lesson> today = day.lessons;
         LocalDateTime midnight = date.plusDays(1).atStartOfDay().plusSeconds(5);
 
         if (today.isEmpty()) {
             boolean weekend = dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
-            s.status = weekend ? "Выходной 🎉" : "Сегодня уроков нет";
-            LocalDate next = nextSchoolDay(date);
+            if (weekend) {
+                s.status = "Выходной 🎉";
+            } else if (day.holiday) {
+                s.status = "Праздничный день 🎉";
+            } else {
+                s.status = "Сегодня уроков нет";
+            }
+            LocalDate next = nextSchoolDay(date, source);
             if (next != null) {
-                List<Schedule.Lesson> nl = Schedule.forDay(next.getDayOfWeek());
+                List<Schedule.Lesson> nl = source.day(next).lessons;
                 s.subText = whenText(date, next) + ": с " + hm(nl.get(0).start) + " · " + nl.get(0).title;
-                s.listTitle = DAY_NAMES[next.getDayOfWeek().getValue() - 1] + " · уроков: " + countLessons(nl);
+                s.listTitle = DAY_NAMES[next.getDayOfWeek().getValue() - 1] + ", " + dateText(next)
+                        + " · уроков: " + countLessons(nl);
                 s.lessons = nl;
                 s.rows = fill(nl.size(), Row.NORMAL);
             } else {
@@ -100,6 +116,7 @@ final class WidgetState {
             s.status = "Сейчас: " + l.title;
             s.countdownTo = date.atTime(l.end);
             s.countdownFormat = "до звонка %s (в " + hm(l.end) + ")";
+            s.subText = l.homeworkSummary();
         } else if (next >= 0) {
             Schedule.Lesson l = today.get(next);
             s.rows[next] = Row.NEXT;
@@ -118,9 +135,9 @@ final class WidgetState {
             s.countdownFormat = "через %s (в " + hm(l.start) + ")";
         } else {
             s.status = "Уроки на сегодня закончились";
-            LocalDate nd = nextSchoolDay(date);
+            LocalDate nd = nextSchoolDay(date, source);
             if (nd != null) {
-                List<Schedule.Lesson> nl = Schedule.forDay(nd.getDayOfWeek());
+                List<Schedule.Lesson> nl = source.day(nd).lessons;
                 s.subText = whenText(date, nd) + ": с " + hm(nl.get(0).start) + " · " + nl.get(0).title;
             }
         }
@@ -138,7 +155,7 @@ final class WidgetState {
     }
 
     /** Классный час не считается уроком английского. */
-    private static int countLessons(List<Schedule.Lesson> list) {
+    static int countLessons(List<Schedule.Lesson> list) {
         int n = 0;
         for (Schedule.Lesson l : list) {
             if (!l.title.startsWith("Кл. час")) n++;
@@ -146,16 +163,18 @@ final class WidgetState {
         return n;
     }
 
-    private static LocalDate nextSchoolDay(LocalDate from) {
-        for (int i = 1; i <= 7; i++) {
+    /** Ближайший день с уроками (смотрим до трёх недель вперёд — на случай каникул). */
+    private static LocalDate nextSchoolDay(LocalDate from, Schedule.Source source) {
+        for (int i = 1; i <= 21; i++) {
             LocalDate d = from.plusDays(i);
-            if (!Schedule.forDay(d.getDayOfWeek()).isEmpty()) return d;
+            if (!source.day(d).lessons.isEmpty()) return d;
         }
         return null;
     }
 
     private static String whenText(LocalDate today, LocalDate d) {
         if (d.equals(today.plusDays(1))) return "Завтра";
+        if (d.isAfter(today.plusDays(6))) return dateText(d);
         return IN_DAY[d.getDayOfWeek().getValue() - 1];
     }
 
