@@ -8,7 +8,7 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/logic.test.js",
+    "test": "node --test test/logic.test.js test/grades.test.js",
     "dist": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {

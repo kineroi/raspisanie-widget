@@ -179,12 +179,16 @@ function render() {
   if (!(a && a.tagName === 'INPUT' && $('geminiView').contains(a))) renderGemini();
   $('onTop').checked = data.miniOnTop;
   $('reminders').checked = data.remindersOn;
+  $('gradeAlerts').checked = data.gradeAlertsOn;
+  $('openGrades').disabled = !data.connected;
   $('autostart').checked = data.autostart;
   renderWeek();
 }
 
 $('onTop').addEventListener('change', (e) => window.api.setMiniOnTop(e.target.checked));
 $('reminders').addEventListener('change', (e) => window.api.setReminders(e.target.checked));
+$('gradeAlerts').addEventListener('change', (e) => window.api.setGradeAlerts(e.target.checked));
+$('openGrades').addEventListener('click', () => window.api.openGrades());
 $('testReminder').addEventListener('click', async () => {
   if (!(await window.api.testReminder())) alert('Ближайших уроков не найдено.');
 });

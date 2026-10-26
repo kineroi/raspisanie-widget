@@ -9,6 +9,8 @@ const bilim = require('./bilim');
 const gemini = require('./gemini');
 const updater = require('./updater');
 const reminders = require('./reminders');
+const journal = require('./journal');
+const digest = require('./digest');
 const L = require('../shared/logic');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
@@ -55,6 +57,7 @@ function snapshot() {
     miniOnTop: store.get('miniOnTop', true),
     version: app.getVersion(),
     remindersOn: store.get('reminders', true),
+    gradeAlertsOn: store.get('gradeAlerts', true),
     update: updater.getState(),
   };
 }
@@ -207,6 +210,32 @@ function openHomework(date, start) {
   w.on('closed', () => homeworkWins.delete(key));
 }
 
+let gradesWin = null;
+
+function openGrades() {
+  if (gradesWin && !gradesWin.isDestroyed()) {
+    gradesWin.show();
+    gradesWin.focus();
+    return;
+  }
+  gradesWin = new BrowserWindow({
+    width: 1040,
+    height: 820,
+    minWidth: 640,
+    minHeight: 480,
+    title: 'Успеваемость',
+    backgroundColor: '#F3E5F5',
+    icon: path.join(ASSETS, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: webPrefs(),
+  });
+  gradesWin.removeMenu();
+  gradesWin.loadFile(path.join(RENDERER, 'grades.html'));
+  gradesWin.on('closed', () => {
+    gradesWin = null;
+  });
+}
+
 /** Вход: настоящая страница BilimClass; пароль вводится на сайте, программа берёт только пропуск. */
 function openLogin() {
   if (loginWin && !loginWin.isDestroyed()) {
@@ -269,6 +298,7 @@ function openLogin() {
 
 async function logout() {
   store.clearBilim();
+  if (gradesWin && !gradesWin.isDestroyed()) gradesWin.close();
   await session.fromPartition(BILIM_PARTITION).clearStorageData();
   broadcast();
 }
@@ -286,6 +316,7 @@ function updateTrayMenu() {
     ] : []),
     { label: miniVisible ? 'Скрыть мини-окно' : 'Показать мини-окно', click: () => (miniVisible ? hideMini() : showMini()) },
     { label: 'Открыть расписание', click: showMain },
+    { label: 'Успеваемость', click: openGrades, enabled: !!store.get('refresh') },
     { label: syncing ? 'Обновляю…' : 'Обновить из BilimClass', enabled: !syncing && !!store.get('refresh'), click: runSync },
     { type: 'separator' },
     {
@@ -341,6 +372,17 @@ ipcMain.handle('set-ai-key', (_e, key) => {
 ipcMain.handle('set-autostart', (_e, on) => setAutostart(!!on));
 ipcMain.handle('set-mini-on-top', (_e, on) => setMiniOnTop(!!on));
 ipcMain.handle('set-reminders', (_e, on) => setReminders(!!on));
+ipcMain.handle('set-grade-alerts', (_e, on) => {
+  store.set({ gradeAlerts: !!on });
+  broadcast();
+});
+ipcMain.handle('open-grades', () => openGrades());
+ipcMain.handle('grades-data', () => journal.snapshot());
+ipcMain.handle('grades-refresh', async () => {
+  const r = await journal.refresh();
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && w !== loginWin) w.webContents.send('grades-changed');
+  return r;
+});
 ipcMain.handle('test-reminder', () => {
   const days = bilim.cachedDays();
   const next = L.nextReminder(new Date(), L.makeSource(days));
@@ -433,6 +475,10 @@ app.whenReady().then(() => {
   runSync();
   setInterval(runSync, SYNC_EVERY_MS);
   updater.start(() => broadcast());
+  digest.start({
+    isEnabled: () => !SMOKE && store.get('gradeAlerts', true),
+    onClick: () => openGrades(),
+  });
   reminders.start({
     getDays: () => bilim.cachedDays(),
     isEnabled: () => !SMOKE && store.get('reminders', true),
@@ -444,7 +490,30 @@ app.whenReady().then(() => {
   });
 });
 
+/** Выдуманные данные успеваемости для самопроверки окна. */
+function smokeGrades() {
+  const G = require('../shared/grades');
+  const today = new Date();
+  const iso = (d) => L.isoDate(d);
+  const end = iso(L.addDays(today, 4));
+  const fo = (m) => ({ formattedScore: { mark: m, assessmentMax: 10 }, sor: [], soch: [] });
+  const quarter = { data: {
+    sorSchedules: [{ uuid: 's1', date: '01.10.26', markMax: 10 }],
+    sochSchedules: [{ uuid: 'c1', date: '30.12.26', markMax: 24 }],
+    finalMarkDeadline: { startDate: end, endDate: end },
+    rows: ['А', 'Б', 'В'].map((x, i) => ({ studentGroupUuid: 'u' + i, fullName: `Ученик ${x}`, finalScore: '', canGetFinalScore: true })),
+  } };
+  const marks = { data: {
+    u0: { marks: { a: fo(3), b: fo(4), s1: { formattedScore: [], sor: { mark: 3, assessmentMax: 10 }, soch: [] } } },
+    u1: { marks: { a: fo(7), b: fo(7), s1: { formattedScore: [], sor: { mark: 7, assessmentMax: 10 }, soch: [] } } },
+    u2: { marks: { a: fo(9), b: fo(10), s1: { formattedScore: [], sor: { mark: 9, assessmentMax: 10 }, soch: [] } } },
+  } };
+  const j = G.buildJournal({ cls: '7А', subject: 'Иностранный язык', period: { n: 2, start: iso(L.addDays(today, -50)), end } }, quarter, marks);
+  store.writeGrades({ updatedAt: Date.now(), journals: [j], lessons: [{ date: iso(L.addDays(today, -1)), cls: '7А', theme: '', homework: '' }] });
+}
+
 function startSmoke() {
+  smokeGrades();
   app.on('browser-window-created', (_e, w) => {
     w.webContents.on('console-message', (event) => {
       if (event.level === 'error') smokeErrors.push(`console: ${event.message}`);
@@ -455,6 +524,7 @@ function startSmoke() {
   });
   process.on('uncaughtException', (err) => smokeErrors.push(`main: ${err.stack || err}`));
   setTimeout(() => openHomework('2026-10-19', '09:00'), 4000);
+  setTimeout(() => openGrades(), 4500);
   // Проверка напоминаний: расчёт и показ уведомления не должны падать
   setTimeout(() => {
     try {
