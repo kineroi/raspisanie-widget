@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'kz.nikolaevka.raspisanie'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'kz.nikolaevka.raspisanie'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // Постоянный ключ подписи: благодаря ему новые версии
+    // устанавливаются поверх старых без удаления виджета.
+    signingConfigs {
+        debug {
+            storeFile file('raspisanie.jks')
+            storePassword 'raspisanie'
+            keyAlias 'raspisanie'
+            keyPassword 'raspisanie'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}

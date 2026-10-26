@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Моё расписание</string>
+    <string name="widget_name">Расписание уроков</string>
+    <string name="widget_desc">Часы, текущий урок и все уроки на сегодня</string>
+</resources>
