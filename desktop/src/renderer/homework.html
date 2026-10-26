@@ -5,11 +5,13 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:">
   <title>Домашнее задание</title>
   <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
   <style>
-    body { background: #fff; }
-    .page { padding: 18px 22px 22px; }
-    h1 { color: var(--purple-dark); font-size: 21px; margin: 0; }
-    .label { color: var(--purple); font-weight: 700; font-size: 13px; margin: 16px 0 6px; }
+    .page { padding: 20px 24px 24px; }
+    h1 { color: var(--text); font-size: 22px; font-weight: 500; margin: 0 0 2px; }
+    .label { color: var(--primary); font-weight: 600; font-size: 13px; margin: 18px 0 6px; }
+    textarea { background: var(--surface); }
     .themes { margin-top: 4px; }
     .warn { color: var(--red); margin-top: 10px; }
     .classes label { margin-right: 16px; cursor: pointer; }
@@ -17,7 +19,7 @@
     .files .file span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .files .file button { padding: 3px 10px; }
     .drop {
-      margin-top: 6px; border: 1.5px dashed var(--lilac-2); border-radius: 12px; padding: 12px;
+      margin-top: 6px; border: 1.5px dashed var(--border); border-radius: 8px; padding: 14px; background: var(--surface);
       text-align: center; color: var(--gray); cursor: pointer;
     }
     .drop.over { background: var(--purple-light); border-color: var(--purple); }

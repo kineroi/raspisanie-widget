@@ -43,6 +43,9 @@
   --accent: #FFD54F;
   --on-accent: #2B1A33;
   --field: #FFFFFF;
+  --hero: #7B1FA2;
+  --hero-sub: #F1DDF7;
+  --hero-track: rgba(255, 255, 255, .25);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,6 +64,8 @@
     --orange: #FFA34C; --orange-soft: #3D2C1C;
     --green: #4FE268;  --green-soft: #1D3721;
     --field: #121212;
+    --hero: #4A2470;
+    --hero-sub: #E1BEE7;
   }
 }
 
@@ -79,6 +84,8 @@
   --orange: #FFA34C; --orange-soft: #3D2C1C;
   --green: #4FE268;  --green-soft: #1D3721;
   --field: #121212;
+  --hero: #4A2470;
+  --hero-sub: #E1BEE7;
 }
 
 /* Старые имена из common.css — чтобы общие кнопки и поля взяли новые цвета */
