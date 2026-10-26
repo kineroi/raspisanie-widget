@@ -178,11 +178,16 @@ function render() {
   const a = document.activeElement;
   if (!(a && a.tagName === 'INPUT' && $('geminiView').contains(a))) renderGemini();
   $('onTop').checked = data.miniOnTop;
+  $('reminders').checked = data.remindersOn;
   $('autostart').checked = data.autostart;
   renderWeek();
 }
 
 $('onTop').addEventListener('change', (e) => window.api.setMiniOnTop(e.target.checked));
+$('reminders').addEventListener('change', (e) => window.api.setReminders(e.target.checked));
+$('testReminder').addEventListener('click', async () => {
+  if (!(await window.api.testReminder())) alert('Ближайших уроков не найдено.');
+});
 $('autostart').addEventListener('change', (e) => window.api.setAutostart(e.target.checked));
 $('showMini').addEventListener('click', () => window.api.showMini());
 $('checkUpdate').addEventListener('click', () => window.api.checkUpdate());

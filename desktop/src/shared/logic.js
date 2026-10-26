@@ -259,6 +259,37 @@
     return s;
   }
 
+  // ---------- Напоминания ----------
+
+  const REMIND_BEFORE_MIN = 5;
+
+  /**
+   * Ближайшее напоминание после now: {at: Date, date: 'YYYY-MM-DD', lesson} или null.
+   * Напоминание — за 5 минут до начала урока; уроки, до которых уже меньше 5 минут, пропускаются.
+   */
+  function nextReminder(now, source, minutesBefore = REMIND_BEFORE_MIN) {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    for (let i = 0; i <= 21; i++) {
+      const d = addDays(today, i);
+      for (const l of source(d).lessons) {
+        const [h, m] = l.start.split(':').map(Number);
+        const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m - minutesBefore);
+        if (at > now) return { at, date: isoDate(d), lesson: l };
+      }
+    }
+    return null;
+  }
+
+  /** Текст напоминания: заголовок и строка с подробностями. */
+  function reminderText(lesson, minutesBefore = REMIND_BEFORE_MIN) {
+    const themes = (lesson.details || []).filter((d) => d.theme)
+      .map((d) => ((lesson.details.length > 1 ? `${d.cls}: ` : '') + d.theme));
+    return {
+      title: `Через ${minutesBefore} минут: ${lesson.title}`,
+      body: [`${range(lesson)}`, ...themes].join(' · '),
+    };
+  }
+
   /** «12:34» или «1:20:05» */
   function formatLeft(ms) {
     const total = Math.max(0, Math.floor(ms / 1000));
@@ -364,6 +395,6 @@
   return {
     DAY_NAMES, MONTHS, isoDate, parseIso, addDays, dow, mondayOf, dateText, toMin, range, eduYear,
     templateDay, makeSource, compactClass, parseWeek, parseWeeks, homeworkSummary, computeState, formatLeft,
-    expandRules, GEMINI_MODELS, geminiRequest, geminiParse,
+    expandRules, GEMINI_MODELS, geminiRequest, geminiParse, nextReminder, reminderText, REMIND_BEFORE_MIN,
   };
 });

@@ -126,3 +126,26 @@ test('время и даты', () => {
   assert.equal(L.compactClass('7 А'), '7А');
   assert.equal(L.compactClass('9 класс'), '9 класс');
 });
+
+test('напоминание за 5 минут до урока', () => {
+  const src = L.makeSource(L.parseWeeks([EMPTY_WEEK, WEEK]));
+  // Утро понедельника 2 ноября: первое — кл. час 08:30 → напоминание в 08:25
+  let r = L.nextReminder(new Date(2026, 10, 2, 7, 0), src);
+  assert.equal(r.date, '2026-11-02');
+  assert.equal(r.lesson.start, '08:30');
+  assert.equal(r.at.getHours() * 60 + r.at.getMinutes(), 8 * 60 + 25);
+  // В 08:56 до урока 09:00 меньше 5 минут — следующее напоминание к 09:50 (в 09:45)
+  r = L.nextReminder(new Date(2026, 10, 2, 8, 56), src);
+  assert.equal(r.lesson.start, '09:50');
+  // Каникулы (неделя 26.10 без уроков) — напоминание переносится на 2 ноября
+  r = L.nextReminder(new Date(2026, 9, 26, 12, 0), src);
+  assert.equal(r.date, '2026-11-02');
+  // После последнего урока понедельника — вторник 12:45 → 12:40
+  r = L.nextReminder(new Date(2026, 10, 2, 14, 0), src);
+  assert.equal(r.date, '2026-11-03');
+  assert.equal(r.lesson.start, '12:45');
+
+  const t = L.reminderText(src(new Date(2026, 10, 2)).lessons[1]);
+  assert.equal(t.title, 'Через 5 минут: 7А + 8А');
+  assert.equal(t.body, '09:00–09:45 · 7А: Theme A · 8А: Theme B');
+});

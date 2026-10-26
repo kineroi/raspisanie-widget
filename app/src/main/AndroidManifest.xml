@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Установка обновлений приложения (Android спрашивает разрешение у пользователя) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Напоминания об уроках -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
@@ -43,6 +45,10 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar"
             android:windowSoftInputMode="adjustResize" />
+
+        <receiver
+            android:name=".Reminders$Receiver"
+            android:exported="false" />
 
         <service
             android:name=".SyncJob"
