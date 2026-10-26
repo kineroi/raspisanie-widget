@@ -1,0 +1,126 @@
+/*
+ * Новый стиль окон (по шаблону «Educational Platform – Student Dashboard», см. ATTRIBUTION.md).
+ * Подключается после common.css. Светлая/тёмная тема следует за Windows,
+ * html[data-theme] — ручной выбор из переключателя в шапке.
+ */
+
+@font-face {
+  font-family: 'Onest';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(fonts/onest-cyrillic-ext-wght-normal.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Onest';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(fonts/onest-cyrillic-wght-normal.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Onest';
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(fonts/onest-latin-wght-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FFFFFF;
+  --surface: #F7F9FC;
+  --border: #ECEEF3;
+  --text: #2E3A59;
+  --muted: #8F9BB3;
+  --primary: #7B1FA2;
+  --primary-soft: #F3E5F5;
+  --on-primary: #FFFFFF;
+  --blue: #3366FF;   --blue-soft: #E7EDFF;
+  --red: #FF333F;    --red-soft: #FFE7E8;
+  --orange: #FF9533; --orange-soft: #FFF2E7;
+  --green: #2BBF46;  --green-soft: #E6F7E9;
+  --accent: #FFD54F;
+  --on-accent: #2B1A33;
+  --field: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121212;
+    --surface: #1C1C1C;
+    --border: #2A2A2A;
+    --text: #F7F9FC;
+    --muted: #8F9BB3;
+    --primary: #C58AF0;
+    --primary-soft: #2B1B38;
+    --on-primary: #1C1024;
+    --blue: #4D79FF;   --blue-soft: #1D253D;
+    --red: #FF4C58;    --red-soft: #3D1C1F;
+    --orange: #FFA34C; --orange-soft: #3D2C1C;
+    --green: #4FE268;  --green-soft: #1D3721;
+    --field: #121212;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121212;
+  --surface: #1C1C1C;
+  --border: #2A2A2A;
+  --text: #F7F9FC;
+  --muted: #8F9BB3;
+  --primary: #C58AF0;
+  --primary-soft: #2B1B38;
+  --on-primary: #1C1024;
+  --blue: #4D79FF;   --blue-soft: #1D253D;
+  --red: #FF4C58;    --red-soft: #3D1C1F;
+  --orange: #FFA34C; --orange-soft: #3D2C1C;
+  --green: #4FE268;  --green-soft: #1D3721;
+  --field: #121212;
+}
+
+/* Старые имена из common.css — чтобы общие кнопки и поля взяли новые цвета */
+:root {
+  --purple-dark: var(--text);
+  --purple: var(--primary);
+  --purple-mid: var(--primary);
+  --purple-light: var(--primary-soft);
+  --lilac: var(--border);
+  --lilac-2: var(--border);
+  --gray: var(--muted);
+  --card: var(--surface);
+  --radius: 8px;
+}
+
+html, body {
+  font-family: 'Onest', "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 8px;
+  font-weight: 500;
+}
+button:hover { background: var(--primary-soft); }
+button.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+button.primary:hover { background: var(--primary); filter: brightness(1.08); }
+button.danger { color: var(--red); border-color: var(--red); }
+
+input[type=text], input[type=password], textarea, select {
+  background: var(--field);
+  border-color: var(--border);
+  color: var(--text);
+  border-radius: 8px;
+}
+
+input[type=checkbox] { accent-color: var(--primary); }
+
+.muted { color: var(--muted); }
+.error { color: var(--red); }
+a { color: var(--primary); }

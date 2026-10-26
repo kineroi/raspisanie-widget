@@ -1,7 +1,7 @@
 'use strict';
 // «Моё расписание» для Windows: мини-окно поверх всех окон, основное окно, окно домашки, трей.
 const {
-  app, BrowserWindow, Tray, Menu, dialog, ipcMain, nativeImage, powerMonitor, screen, session, shell,
+  app, BrowserWindow, Tray, Menu, dialog, ipcMain, nativeImage, nativeTheme, powerMonitor, screen, session, shell,
 } = require('electron');
 const path = require('path');
 const store = require('./store');
@@ -183,12 +183,13 @@ function showMain() {
     return;
   }
   main = new BrowserWindow({
-    width: 980,
+    width: 1240,
     height: 820,
     minWidth: 620,
     minHeight: 500,
     title: 'Моё расписание',
-    backgroundColor: '#F3E5F5',
+    // цвет до загрузки страницы — под тему Windows, чтобы не мигало
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#121212' : '#FFFFFF',
     icon: path.join(ASSETS, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: webPrefs(),
