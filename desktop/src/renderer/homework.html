@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:">
+  <title>Домашнее задание</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { background: #fff; }
+    .page { padding: 18px 22px 22px; }
+    h1 { color: var(--purple-dark); font-size: 21px; margin: 0; }
+    .label { color: var(--purple); font-weight: 700; font-size: 13px; margin: 16px 0 6px; }
+    .themes { margin-top: 4px; }
+    .warn { color: var(--red); margin-top: 10px; }
+    .classes label { margin-right: 16px; cursor: pointer; }
+    .files .file { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+    .files .file span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .files .file button { padding: 3px 10px; }
+    .drop {
+      margin-top: 6px; border: 1.5px dashed var(--lilac-2); border-radius: 12px; padding: 12px;
+      text-align: center; color: var(--gray); cursor: pointer;
+    }
+    .drop.over { background: var(--purple-light); border-color: var(--purple); }
+    #status { margin-top: 12px; min-height: 18px; }
+    .actions { display: flex; gap: 10px; margin-top: 14px; }
+    .actions .primary { flex: 1.6; padding: 10px; }
+    .actions button { flex: 1; }
+    #expand { width: 100%; margin-top: 8px; padding: 9px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Домашнее задание</h1>
+    <div id="head" class="muted"></div>
+    <div id="themes" class="themes small muted"></div>
+    <div id="warn" class="warn" hidden></div>
+
+    <div id="classesBox" hidden>
+      <div class="label">Кому задать</div>
+      <div id="classes" class="classes"></div>
+    </div>
+
+    <div class="label">Кратко, что задать</div>
+    <textarea id="note" rows="2" placeholder="Например: стр 45 упр 3 письм, сл выуч"></textarea>
+    <button id="expand" class="primary">✨ Расписать на русском и английском</button>
+    <div id="noKey" class="small muted" hidden>Ключ Gemini не указан — текст распишется по простым правилам. Ключ можно добавить в основном окне.</div>
+
+    <div class="label">Текст для BilimClass (можно исправить)</div>
+    <textarea id="result" rows="6" placeholder="Здесь появится готовый текст"></textarea>
+
+    <div class="label">Файлы</div>
+    <div class="files" id="existing"></div>
+    <div class="files" id="added"></div>
+    <div class="drop" id="drop">📎 Перетащите сюда фото или документы — или нажмите, чтобы выбрать</div>
+    <input type="file" id="picker" multiple hidden>
+
+    <div id="status" class="muted"></div>
+    <div class="actions">
+      <button id="close">Закрыть</button>
+      <button id="send" class="primary">Отправить в BilimClass</button>
+    </div>
+  </div>
+  <script src="../shared/logic.js"></script>
+  <script src="homework.js"></script>
+</body>
+</html>

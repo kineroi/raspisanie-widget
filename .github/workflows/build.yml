@@ -1,4 +1,4 @@
-name: Сборка APK
+name: Сборка APK и программы для Windows
 
 on:
   push:
@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   build:
+    name: Android
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -28,11 +29,48 @@ jobs:
           gradle testDebugUnitTest assembleDebug --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk raspisanie-widget.apk
 
-      - name: Опубликовать в Releases
+      # Черновик выпуска: станет «последним» только когда соберётся и версия для Windows
+      - name: Создать черновик выпуска
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v${{ github.run_number }}" raspisanie-widget.apk \
             --title "Расписание, версия ${{ github.run_number }}" \
-            --notes "Скачайте raspisanie-widget.apk на телефон и установите." \
-            --latest
+            --notes "Телефон (Android): raspisanie-widget.apk. Компьютер (Windows): raspisanie-setup.exe." \
+            --draft
+
+  desktop:
+    name: Windows
+    needs: build
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Установить зависимости
+        run: npm ci --no-audit --no-fund
+
+      - name: Тесты
+        run: npm test
+
+      - name: Собрать установщик
+        run: npm run dist
+
+      - name: Самопроверка программы
+        run: |
+          exe=$(ls dist/win-unpacked/*.exe | head -1)
+          echo "Запускаю: $exe"
+          code=0
+          RASPISANIE_SMOKE=1 RASPISANIE_SMOKE_REPORT="$PWD/smoke.json" timeout 120 "$exe" || code=$?
+          cat smoke.json || true
+          exit $code
+
+      - name: Добавить в выпуск и опубликовать
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "v${{ github.run_number }}" dist/raspisanie-setup.exe --clobber
+          gh release edit "v${{ github.run_number }}" --draft=false --latest
