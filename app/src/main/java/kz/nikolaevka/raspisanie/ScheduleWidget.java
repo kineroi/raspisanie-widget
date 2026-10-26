@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.text.SpannableString;
 import android.text.Spanned;
+import android.text.style.StrikethroughSpan;
 import android.text.style.StyleSpan;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -30,10 +31,13 @@ public class ScheduleWidget extends AppWidgetProvider {
     private static final int[] NAME_IDS = {R.id.row1_name, R.id.row2_name, R.id.row3_name,
             R.id.row4_name, R.id.row5_name, R.id.row6_name};
 
-    private static final int COLOR_TEXT = 0xFFFFFFFF;
-    private static final int COLOR_PAST = 0x80FFFFFF;
-    private static final int COLOR_CURRENT = 0xFF4A148C;
-    private static final int COLOR_ACCENT = 0xFFFFD54F;
+    private static final int[] DOT_IDS = {R.id.row1_dot, R.id.row2_dot, R.id.row3_dot,
+            R.id.row4_dot, R.id.row5_dot, R.id.row6_dot};
+    private static final int[] CHIP_IDS = {R.id.row1_chip, R.id.row2_chip, R.id.row3_chip,
+            R.id.row4_chip, R.id.row5_chip, R.id.row6_chip};
+
+    /** Пока идёт урок или перемена, полосу прогресса обновляем не реже чем раз в 5 минут. */
+    private static final Duration PROGRESS_STEP = Duration.ofMinutes(5);
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] ids) {
@@ -80,7 +84,12 @@ public class ScheduleWidget extends AppWidgetProvider {
         }
         manager.updateAppWidget(ids, build(context, s, now));
         Bilim.schedule(context);
-        scheduleNext(context, s.nextUpdate);
+        LocalDateTime next = s.nextUpdate;
+        if (s.progressFrom != null) {
+            LocalDateTime step = now.plus(PROGRESS_STEP);
+            if (step.isBefore(next)) next = step;
+        }
+        scheduleNext(context, next);
     }
 
     private static RemoteViews build(Context context, WidgetState s, LocalDateTime now) {
@@ -88,17 +97,31 @@ public class ScheduleWidget extends AppWidgetProvider {
 
         v.setTextViewText(R.id.day_name, s.dayName);
         v.setTextViewText(R.id.date, s.dateText);
-        v.setTextViewText(R.id.status_text, s.status);
+        showText(v, R.id.pill, s.counter);
+        v.setTextViewText(R.id.hero_label, s.heroLabel);
+        showText(v, R.id.hero_range, s.heroRange);
+        v.setTextViewText(R.id.status_text, s.heroTitle);
 
         if (s.countdownTo != null) {
             long left = Duration.between(now, s.countdownTo).toMillis();
             long base = SystemClock.elapsedRealtime() + Math.max(left, 0);
-            v.setChronometer(R.id.countdown, base, s.countdownFormat, true);
+            v.setChronometer(R.id.countdown, base, null, true);
             v.setChronometerCountDown(R.id.countdown, true);
-            v.setViewVisibility(R.id.countdown, View.VISIBLE);
+            v.setTextViewText(R.id.countdown_label, s.countdownLabel);
+            v.setViewVisibility(R.id.countdown_box, View.VISIBLE);
         } else {
             v.setChronometer(R.id.countdown, SystemClock.elapsedRealtime(), null, false);
-            v.setViewVisibility(R.id.countdown, View.GONE);
+            v.setViewVisibility(R.id.countdown_box, View.GONE);
+        }
+
+        if (s.progressFrom != null && s.countdownTo != null) {
+            long total = Duration.between(s.progressFrom, s.countdownTo).toMillis();
+            long done = Duration.between(s.progressFrom, now).toMillis();
+            int pct = total > 0 ? (int) Math.max(0, Math.min(100, done * 100 / total)) : 0;
+            v.setProgressBar(R.id.progress, 100, pct, false);
+            v.setViewVisibility(R.id.progress, View.VISIBLE);
+        } else {
+            v.setViewVisibility(R.id.progress, View.GONE);
         }
 
         if (s.subText != null && !s.subText.isEmpty()) {
@@ -119,36 +142,51 @@ public class ScheduleWidget extends AppWidgetProvider {
             WidgetState.Row r = s.rows[i];
             v.setViewVisibility(ROW_IDS[i], View.VISIBLE);
 
-            String time = WidgetState.range(l);
-            String name = l.title;
-            int color;
-            int bg;
+            int bg = R.drawable.row_empty;
+            int dot;
+            int timeColor = R.color.w_muted;
+            int nameColor = R.color.w_text;
+            String chip = null;
+            int chipBg = R.drawable.chip_next;
+            int chipColor = R.color.w_chip_text;
             switch (r) {
                 case CURRENT:
-                    color = COLOR_CURRENT;
                     bg = R.drawable.row_current;
-                    name = "▶ " + name;
+                    dot = R.drawable.dot_current;
+                    timeColor = nameColor = R.color.w_row_cur_text;
+                    chip = "идёт";
+                    chipBg = R.drawable.chip_current;
+                    chipColor = R.color.w_chip_cur_text;
                     break;
                 case NEXT:
-                    color = COLOR_ACCENT;
                     bg = R.drawable.row_next;
+                    dot = R.drawable.dot_next;
+                    timeColor = R.color.w_text;
+                    chip = "далее";
                     break;
                 case PAST:
-                    color = COLOR_PAST;
-                    bg = R.drawable.row_empty;
-                    name = "✓ " + name;
+                    dot = R.drawable.dot_past;
+                    nameColor = R.color.w_muted;
                     break;
                 default:
-                    color = COLOR_TEXT;
-                    bg = R.drawable.row_empty;
+                    dot = R.drawable.dot_later;
                     break;
             }
             boolean bold = r == WidgetState.Row.CURRENT || r == WidgetState.Row.NEXT;
-            v.setTextViewText(TIME_IDS[i], styled(time, bold));
-            v.setTextViewText(NAME_IDS[i], styled(name, bold));
-            v.setTextColor(TIME_IDS[i], color);
-            v.setTextColor(NAME_IDS[i], color);
+            v.setTextViewText(TIME_IDS[i], WidgetState.range(l));
+            v.setTextViewText(NAME_IDS[i], styled(l.title, bold, r == WidgetState.Row.PAST));
+            textColor(context, v, TIME_IDS[i], timeColor);
+            textColor(context, v, NAME_IDS[i], nameColor);
             v.setInt(ROW_IDS[i], "setBackgroundResource", bg);
+            v.setImageViewResource(DOT_IDS[i], dot);
+            if (chip != null) {
+                v.setTextViewText(CHIP_IDS[i], chip);
+                v.setInt(CHIP_IDS[i], "setBackgroundResource", chipBg);
+                textColor(context, v, CHIP_IDS[i], chipColor);
+                v.setViewVisibility(CHIP_IDS[i], View.VISIBLE);
+            } else {
+                v.setViewVisibility(CHIP_IDS[i], View.GONE);
+            }
 
             // Нажатие на урок — окно «Домашнее задание» для этого урока
             Intent hw = new Intent(context, HomeworkActivity.class)
@@ -167,11 +205,33 @@ public class ScheduleWidget extends AppWidgetProvider {
         return v;
     }
 
-    private static CharSequence styled(String text, boolean bold) {
-        if (!bold) return text;
+    private static CharSequence styled(String text, boolean bold, boolean strike) {
+        if (!bold && !strike) return text;
         SpannableString sp = new SpannableString(text);
-        sp.setSpan(new StyleSpan(Typeface.BOLD), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (bold) sp.setSpan(new StyleSpan(Typeface.BOLD), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (strike) sp.setSpan(new StrikethroughSpan(), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return sp;
+    }
+
+    /**
+     * Цвет текста из ресурсов. На Android 12+ цвет подставляет сам рабочий стол,
+     * поэтому виджет сразу перекрашивается при смене светлой/тёмной темы.
+     */
+    private static void textColor(Context context, RemoteViews v, int viewId, int colorRes) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            v.setColorStateList(viewId, "setTextColor", colorRes);
+        } else {
+            v.setTextColor(viewId, context.getColor(colorRes));
+        }
+    }
+
+    private static void showText(RemoteViews v, int viewId, String text) {
+        if (text == null || text.isEmpty()) {
+            v.setViewVisibility(viewId, View.GONE);
+        } else {
+            v.setTextViewText(viewId, text);
+            v.setViewVisibility(viewId, View.VISIBLE);
+        }
     }
 
     private static PendingIntent tickIntent(Context context) {

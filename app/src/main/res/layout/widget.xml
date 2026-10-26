@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Цвета берутся из values/colors.xml и values-night/colors.xml: тема виджета следует за системной -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
     android:orientation="vertical"
-    android:paddingStart="14dp"
-    android:paddingTop="10dp"
-    android:paddingEnd="14dp"
-    android:paddingBottom="10dp">
+    android:paddingStart="16dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="12dp">
 
-    <!-- Часы и день -->
+    <!-- Часы, день, дата и счётчик уроков -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -21,12 +22,13 @@
             android:id="@+id/clock"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
             android:format12Hour="HH:mm"
             android:format24Hour="HH:mm"
             android:includeFontPadding="false"
-            android:textColor="#FFFFFF"
-            android:textSize="32sp"
-            android:textStyle="bold" />
+            android:letterSpacing="-0.02"
+            android:textColor="@color/w_text"
+            android:textSize="38sp" />
 
         <LinearLayout
             android:layout_width="0dp"
@@ -39,11 +41,11 @@
                 android:id="@+id/day_name"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
                 android:text="Понедельник"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:textColor="@color/w_text"
+                android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/date"
@@ -51,49 +53,136 @@
                 android:layout_height="wrap_content"
                 android:maxLines="1"
                 android:text="26 октября"
-                android:textColor="#E1BEE7"
-                android:textSize="12sp" />
+                android:textColor="@color/w_muted"
+                android:textSize="13sp" />
         </LinearLayout>
-    </LinearLayout>
-
-    <!-- Что сейчас -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/status_bg"
-        android:orientation="vertical"
-        android:paddingStart="10dp"
-        android:paddingTop="5dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="5dp">
 
         <TextView
-            android:id="@+id/status_text"
-            android:layout_width="match_parent"
+            android:id="@+id/pill"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
+            android:background="@drawable/pill_bg"
+            android:fontFamily="sans-serif-medium"
             android:maxLines="1"
-            android:text="Сейчас: 7А + 8А"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <Chronometer
-            android:id="@+id/countdown"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:textColor="#FFD54F"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:text="3 из 5"
+            android:textColor="@color/w_muted"
             android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Карточка «Сейчас»: урок или перемена, отсчёт до звонка, прогресс -->
+    <LinearLayout
+        android:id="@+id/hero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/status_bg"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/hero_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.08"
+                android:maxLines="1"
+                android:text="Сейчас идёт урок"
+                android:textAllCaps="true"
+                android:textColor="@color/w_hero_sub"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/hero_range"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:maxLines="1"
+                android:text="10:05–10:50"
+                android:textColor="@color/w_hero_sub"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="bottom"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:text="7А + 8А"
+                android:textColor="@color/w_hero_text"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/countdown_box"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <Chronometer
+                    android:id="@+id/countdown"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/w_accent"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/countdown_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxLines="1"
+                    android:text="до звонка"
+                    android:textColor="@color/w_hero_sub"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="8dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_lesson" />
 
         <TextView
             android:id="@+id/sub_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
             android:ellipsize="end"
             android:maxLines="2"
-            android:textColor="#FFD54F"
+            android:textColor="@color/w_hero_sub"
             android:textSize="12sp"
             android:visibility="gone" />
     </LinearLayout>
@@ -102,35 +191,44 @@
         android:id="@+id/list_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="10dp"
         android:layout_marginBottom="2dp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.08"
         android:maxLines="1"
         android:text="Мои уроки сегодня"
         android:textAllCaps="true"
-        android:textColor="#CE93D8"
-        android:textSize="10sp"
-        android:textStyle="bold" />
+        android:textColor="@color/w_muted"
+        android:textSize="11sp" />
 
     <LinearLayout
         android:id="@+id/row1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/row_empty"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="2dp">
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/row1_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/dot_later" />
 
         <TextView
             android:id="@+id/row1_time"
-            android:layout_width="84dp"
+            android:layout_width="82dp"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_muted"
+            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/row1_name"
@@ -139,30 +237,54 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/row1_chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/chip_next"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingStart="7dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="1dp"
+            android:textColor="@color/w_chip_text"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/row2"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/row_empty"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="2dp">
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/row2_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/dot_later" />
 
         <TextView
             android:id="@+id/row2_time"
-            android:layout_width="84dp"
+            android:layout_width="82dp"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_muted"
+            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/row2_name"
@@ -171,30 +293,54 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/row2_chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/chip_next"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingStart="7dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="1dp"
+            android:textColor="@color/w_chip_text"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/row3"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/row_empty"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="2dp">
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/row3_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/dot_later" />
 
         <TextView
             android:id="@+id/row3_time"
-            android:layout_width="84dp"
+            android:layout_width="82dp"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_muted"
+            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/row3_name"
@@ -203,30 +349,54 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/row3_chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/chip_next"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingStart="7dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="1dp"
+            android:textColor="@color/w_chip_text"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/row4"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/row_empty"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="2dp">
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/row4_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/dot_later" />
 
         <TextView
             android:id="@+id/row4_time"
-            android:layout_width="84dp"
+            android:layout_width="82dp"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_muted"
+            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/row4_name"
@@ -235,30 +405,54 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/row4_chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/chip_next"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingStart="7dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="1dp"
+            android:textColor="@color/w_chip_text"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/row5"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/row_empty"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="2dp">
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/row5_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/dot_later" />
 
         <TextView
             android:id="@+id/row5_time"
-            android:layout_width="84dp"
+            android:layout_width="82dp"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_muted"
+            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/row5_name"
@@ -267,30 +461,54 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/row5_chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/chip_next"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingStart="7dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="1dp"
+            android:textColor="@color/w_chip_text"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/row6"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/row_empty"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingTop="2dp"
-        android:paddingEnd="6dp"
-        android:paddingBottom="2dp">
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/row6_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="10dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/dot_later" />
 
         <TextView
             android:id="@+id/row6_time"
-            android:layout_width="84dp"
+            android:layout_width="82dp"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_muted"
+            android:textSize="13sp" />
 
         <TextView
             android:id="@+id/row6_name"
@@ -299,7 +517,23 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
+            android:textColor="@color/w_text"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/row6_chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/chip_next"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:paddingStart="7dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="7dp"
+            android:paddingBottom="1dp"
+            android:textColor="@color/w_chip_text"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>

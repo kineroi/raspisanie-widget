@@ -1,4 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="purple">#6A1B9A</color>
+
+    <!-- Виджет, светлая тема (тёмная — в values-night) -->
+    <color name="w_bg">#FBF7FF</color>
+    <color name="w_text">#241A2E</color>
+    <color name="w_muted">#76687F</color>
+    <color name="w_dot_past">#5976687F</color>
+    <color name="w_dot_later">#9976687F</color>
+    <color name="w_pill_bg">#EFE7F3</color>
+    <color name="w_hero_bg">#7B1FA2</color>
+    <color name="w_hero_text">#FFFFFF</color>
+    <color name="w_hero_sub">#F1DDF7</color>
+    <color name="w_hero_track">#9C4DBB</color>
+    <color name="w_accent">#FFD54F</color>
+    <color name="w_row_cur">#F1E4F7</color>
+    <color name="w_row_cur_text">#6A1B9A</color>
+    <color name="w_chip_bg">#FFF0C2</color>
+    <color name="w_chip_text">#6B4E00</color>
+    <color name="w_chip_cur_text">#2B1A33</color>
 </resources>

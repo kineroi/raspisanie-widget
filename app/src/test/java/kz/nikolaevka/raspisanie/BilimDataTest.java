@@ -1,6 +1,7 @@
 package kz.nikolaevka.raspisanie;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -102,10 +103,19 @@ public class BilimDataTest {
         assertEquals("Сейчас: 7А + 8А", s.status);
         assertEquals("ДЗ: 7А — ex. 1; 8А — ex. 2", s.subText);
         assertEquals(WidgetState.Row.CURRENT, s.rows[1]);
+        assertEquals("7А + 8А", s.heroTitle);
+        assertEquals("Сейчас идёт урок", s.heroLabel);
+        assertEquals("до звонка", s.countdownLabel);
+        assertTrue(!s.progressFrom.isAfter(LocalDateTime.of(2026, 11, 2, 9, 10)));
+        assertTrue(s.countdownTo.isAfter(LocalDateTime.of(2026, 11, 2, 9, 10)));
+        assertTrue(s.counter, s.counter.startsWith("2 из "));
 
         // Каникулы: уроков нет, показывается ближайший учебный день (через неделю)
         WidgetState h = WidgetState.compute(LocalDateTime.of(2026, 10, 26, 10, 0), src);
         assertEquals("Праздничный день 🎉", h.status);
+        assertEquals(h.status, h.heroTitle);
+        assertNull(h.counter);
+        assertNull(h.countdownTo);
         assertTrue(h.subText, h.subText.startsWith("2 ноября: с 08:30"));
 
         WidgetState h2 = WidgetState.compute(LocalDateTime.of(2026, 10, 27, 10, 0), src);
@@ -194,5 +204,10 @@ public class BilimDataTest {
     public void templateStillWorks() {
         WidgetState s = WidgetState.compute(LocalDateTime.of(2026, 10, 19, 9, 47));
         assertEquals("Перемена · далее 5А + 6А", s.status);
+        assertEquals("5А + 6А", s.heroTitle);
+        assertEquals("Перемена · далее", s.heroLabel);
+        assertEquals("до урока", s.countdownLabel);
+        assertNotNull(s.progressFrom);
+        assertTrue(s.progressFrom.isBefore(s.countdownTo));
     }
 }
