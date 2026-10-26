@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Виджет, тёмная тема -->
+    <color name="w_bg">#1D1426</color>
+    <color name="w_text">#F4ECF8</color>
+    <color name="w_muted">#A996B6</color>
+    <color name="w_dot_past">#59A996B6</color>
+    <color name="w_dot_later">#99A996B6</color>
+    <color name="w_pill_bg">#2B2036</color>
+    <color name="w_hero_bg">#4A2470</color>
+    <color name="w_hero_text">#FFFFFF</color>
+    <color name="w_hero_sub">#E1BEE7</color>
+    <color name="w_hero_track">#6A3D8F</color>
+    <color name="w_accent">#FFD54F</color>
+    <color name="w_row_cur">#33224A</color>
+    <color name="w_row_cur_text">#F0D8FA</color>
+    <color name="w_chip_bg">#3B3018</color>
+    <color name="w_chip_text">#FFD54F</color>
+    <color name="w_chip_cur_text">#2B1A33</color>
+</resources>

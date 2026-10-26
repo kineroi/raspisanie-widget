@@ -25,10 +25,20 @@ final class WidgetState {
     String dayName;
     String dateText;
     String status;
+    /** Крупный заголовок карточки «Сейчас»: класс текущего или следующего урока, иначе status. */
+    String heroTitle;
+    /** Мелкая надпись над заголовком карточки: «Сейчас идёт урок», «Перемена · далее»… */
+    String heroLabel;
+    /** Время урока в углу карточки (или null). */
+    String heroRange;
+    /** «3 из 5» — сколько уроков сегодня уже началось (или null, если сегодня уроков нет). */
+    String counter;
     /** Момент, до которого идёт обратный отсчёт (или null). */
     LocalDateTime countdownTo;
-    /** Подпись к отсчёту, %s заменяется на оставшееся время. */
-    String countdownFormat;
+    /** Подпись под отсчётом: «до звонка» или «до урока». */
+    String countdownLabel;
+    /** Начало отрезка для полосы прогресса (конец — countdownTo), или null — полосы нет. */
+    LocalDateTime progressFrom;
     String subText;
     String listTitle;
     List<Schedule.Lesson> lessons;
@@ -91,6 +101,8 @@ final class WidgetState {
                 s.rows = new Row[0];
                 s.listTitle = "";
             }
+            s.heroLabel = "Сегодня";
+            s.heroTitle = s.status;
             s.nextUpdate = midnight;
             return s;
         }
@@ -119,33 +131,51 @@ final class WidgetState {
             Schedule.Lesson l = today.get(current);
             s.rows[current] = Row.CURRENT;
             s.status = "Сейчас: " + l.title;
+            s.heroLabel = "Сейчас идёт урок";
+            s.heroTitle = l.title;
+            s.heroRange = range(l);
             s.countdownTo = date.atTime(l.end);
-            s.countdownFormat = "до звонка %s (в " + hm(l.end) + ")";
+            s.countdownLabel = "до звонка";
+            s.progressFrom = date.atTime(l.start);
             s.subText = l.homeworkSummary();
         } else if (next >= 0) {
             Schedule.Lesson l = today.get(next);
             s.rows[next] = Row.NEXT;
+            s.heroTitle = l.title;
+            s.heroRange = range(l);
             if (next == 0) {
                 s.status = "Уроки с " + hm(l.start) + " · " + l.title;
+                s.heroLabel = "Первый урок";
             } else {
                 Schedule.Lesson prev = today.get(next - 1);
                 long gap = Duration.between(prev.end, l.start).toMinutes();
                 if (gap < Schedule.MAX_BREAK_MINUTES) {
                     s.status = "Перемена · далее " + l.title;
+                    s.heroLabel = "Перемена · далее";
                 } else {
                     s.status = "Окно · далее " + l.title;
+                    s.heroLabel = "Окно · далее";
                 }
+                s.progressFrom = date.atTime(prev.end);
             }
             s.countdownTo = date.atTime(l.start);
-            s.countdownFormat = "через %s (в " + hm(l.start) + ")";
+            s.countdownLabel = "до урока";
         } else {
             s.status = "Уроки на сегодня закончились";
+            s.heroLabel = "Сегодня";
+            s.heroTitle = s.status;
             LocalDate nd = nextSchoolDay(date, source);
             if (nd != null) {
                 List<Schedule.Lesson> nl = source.day(nd).lessons;
                 s.subText = whenText(date, nd) + ": с " + hm(nl.get(0).start) + " · " + nl.get(0).title;
             }
         }
+
+        int started = 0;
+        for (Row r : s.rows) {
+            if (r == Row.PAST || r == Row.CURRENT) started++;
+        }
+        s.counter = started + " из " + today.size();
 
         // Следующее обновление: ближайший звонок (начало или конец урока) после текущего момента.
         LocalDateTime upd = midnight;
