@@ -191,8 +191,7 @@ final class Bilim {
 
     static List<String> aiModels(Context c) {
         String s = prefs(c).getString(K_AI_MODELS, "");
-        return s.isEmpty() ? new ArrayList<>() : new ArrayList<>(Arrays.asList(s.split("
-")));
+        return s.isEmpty() ? new ArrayList<>() : new ArrayList<>(Arrays.asList(s.split("\n")));
     }
 
     /** Подключённый сервис (или null, если ключа нет). */
@@ -208,8 +207,7 @@ final class Bilim {
                 .putString(K_AI_PROVIDER, d.providerId)
                 .putString(K_AI_BASE, Ai.CUSTOM.equals(d.providerId) ? d.base : "")
                 .putString(K_AI_MODEL, d.model)
-                .putString(K_AI_MODELS, String.join("
-", d.models))
+                .putString(K_AI_MODELS, String.join("\n", d.models))
                 .apply();
     }
 
@@ -218,8 +216,7 @@ final class Bilim {
     }
 
     static void setAiModels(Context c, String providerId, List<String> models) {
-        prefs(c).edit().putString(K_AI_PROVIDER, providerId).putString(K_AI_MODELS, String.join("
-", models)).apply();
+        prefs(c).edit().putString(K_AI_PROVIDER, providerId).putString(K_AI_MODELS, String.join("\n", models)).apply();
     }
 
     static void clearAi(Context c) {
