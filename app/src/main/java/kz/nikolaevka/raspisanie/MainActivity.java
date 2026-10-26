@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -59,6 +60,74 @@ public class MainActivity extends Activity {
         render();
         if (Bilim.isConnected(this)) startSync();
         checkUpdates(false);
+        askNotificationPermission();
+    }
+
+    // ---------- Напоминания ----------
+
+    private boolean askedNotifications = false;
+
+    private boolean notificationsAllowed() {
+        return Build.VERSION.SDK_INT < 33
+                || checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** На Android 13+ уведомления нужно разрешить; спрашиваем один раз за запуск. */
+    private void askNotificationPermission() {
+        if (askedNotifications || !Reminders.enabled(this) || notificationsAllowed()) return;
+        askedNotifications = true;
+        requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 5);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        render();
+    }
+
+    private View remindersCard() {
+        LinearLayout card = card(Color.WHITE);
+        android.widget.CheckBox cb = new android.widget.CheckBox(this);
+        cb.setText("Напоминать за 5 минут до урока");
+        cb.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        cb.setTextColor(PURPLE_DARK);
+        cb.setChecked(Reminders.enabled(this));
+        cb.setOnCheckedChangeListener((v, on) -> {
+            Reminders.setEnabled(this, on);
+            if (on) {
+                askedNotifications = false;
+                askNotificationPermission();
+            }
+        });
+        card.addView(cb);
+        if (Reminders.enabled(this) && !notificationsAllowed()) {
+            card.addView(text("Уведомления выключены в настройках Android — напоминания не будут видны.",
+                    13, 0xFFC62828, false));
+            Button settings = button("Разрешить уведомления", PURPLE, Color.WHITE);
+            settings.setOnClickListener(v -> startActivity(new Intent(
+                    android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName())));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+            lp.topMargin = dp(6);
+            card.addView(settings, lp);
+        } else if (Reminders.enabled(this)) {
+            Button test = button("Пробное напоминание", Color.WHITE, PURPLE_DARK);
+            test.setOnClickListener(v -> {
+                Reminders.Next n = Reminders.next(LocalDateTime.now(), Bilim.source(this));
+                if (n == null) {
+                    Toast.makeText(this, "Ближайших уроков не найдено", Toast.LENGTH_SHORT).show();
+                } else {
+                    Reminders.show(this, n.date, n.lesson);
+                }
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(40));
+            lp.topMargin = dp(4);
+            card.addView(test, lp);
+        }
+        return card;
     }
 
     // ---------- Обновление приложения ----------
@@ -188,6 +257,7 @@ public class MainActivity extends Activity {
         if (Updater.hasUpdate(this) || updateStatus != null) col.addView(updateCard());
         col.addView(bilimCard());
         col.addView(geminiCard());
+        col.addView(remindersCard());
 
         // Переключатель недель
         LinearLayout weeks = new LinearLayout(this);

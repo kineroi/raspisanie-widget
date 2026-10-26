@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   setAiKey: (key) => ipcRenderer.invoke('set-ai-key', key),
   setAutostart: (on) => ipcRenderer.invoke('set-autostart', on),
   setMiniOnTop: (on) => ipcRenderer.invoke('set-mini-on-top', on),
+  setReminders: (on) => ipcRenderer.invoke('set-reminders', on),
+  testReminder: () => ipcRenderer.invoke('test-reminder'),
   openMain: () => ipcRenderer.invoke('open-main'),
   openHomework: (date, start) => ipcRenderer.invoke('open-homework', date, start),
   hideMini: () => ipcRenderer.invoke('hide-mini'),

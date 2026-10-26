@@ -8,6 +8,7 @@ const store = require('./store');
 const bilim = require('./bilim');
 const gemini = require('./gemini');
 const updater = require('./updater');
+const reminders = require('./reminders');
 const L = require('../shared/logic');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
@@ -53,11 +54,13 @@ function snapshot() {
     autostart: app.getLoginItemSettings().openAtLogin,
     miniOnTop: store.get('miniOnTop', true),
     version: app.getVersion(),
+    remindersOn: store.get('reminders', true),
     update: updater.getState(),
   };
 }
 
 function broadcast() {
+  reminders.reschedule();
   const data = snapshot();
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed() && w !== loginWin) w.webContents.send('data-changed', data);
@@ -290,6 +293,10 @@ function updateTrayMenu() {
       click: (item) => setMiniOnTop(item.checked),
     },
     {
+      label: 'Напоминать за 5 минут до урока', type: 'checkbox', checked: store.get('reminders', true),
+      click: (item) => setReminders(item.checked),
+    },
+    {
       label: 'Запускать вместе с Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => setAutostart(item.checked),
     },
@@ -301,6 +308,11 @@ function updateTrayMenu() {
 function installUpdate() {
   quitting = true;
   updater.installNow();
+}
+
+function setReminders(on) {
+  store.set({ reminders: on });
+  broadcast();
 }
 
 function setMiniOnTop(on) {
@@ -328,6 +340,13 @@ ipcMain.handle('set-ai-key', (_e, key) => {
 });
 ipcMain.handle('set-autostart', (_e, on) => setAutostart(!!on));
 ipcMain.handle('set-mini-on-top', (_e, on) => setMiniOnTop(!!on));
+ipcMain.handle('set-reminders', (_e, on) => setReminders(!!on));
+ipcMain.handle('test-reminder', () => {
+  const days = bilim.cachedDays();
+  const next = L.nextReminder(new Date(), L.makeSource(days));
+  if (next) reminders.show(next.lesson, next.date);
+  return !!next;
+});
 ipcMain.handle('open-main', () => showMain());
 ipcMain.handle('open-homework', (_e, date, start) => openHomework(String(date), String(start)));
 ipcMain.handle('hide-mini', () => hideMini());
@@ -414,7 +433,15 @@ app.whenReady().then(() => {
   runSync();
   setInterval(runSync, SYNC_EVERY_MS);
   updater.start(() => broadcast());
-  powerMonitor.on('resume', () => setTimeout(runSync, 15000));
+  reminders.start({
+    getDays: () => bilim.cachedDays(),
+    isEnabled: () => !SMOKE && store.get('reminders', true),
+    onClick: (date, start) => openHomework(date, start),
+  });
+  powerMonitor.on('resume', () => {
+    reminders.reschedule();
+    setTimeout(runSync, 15000);
+  });
 });
 
 function startSmoke() {
@@ -428,6 +455,16 @@ function startSmoke() {
   });
   process.on('uncaughtException', (err) => smokeErrors.push(`main: ${err.stack || err}`));
   setTimeout(() => openHomework('2026-10-19', '09:00'), 4000);
+  // Проверка напоминаний: расчёт и показ уведомления не должны падать
+  setTimeout(() => {
+    try {
+      const next = L.nextReminder(new Date(), L.makeSource(bilim.cachedDays()));
+      if (!next) smokeErrors.push('reminder: nothing found in template');
+      else reminders.show(next.lesson, next.date);
+    } catch (err) {
+      smokeErrors.push(`reminder: ${err.stack || err}`);
+    }
+  }, 5000);
   // Проверка окна домашки: написать заметку, нажать «Расписать», прочитать результат
   setTimeout(async () => {
     const hw = [...homeworkWins.values()][0];

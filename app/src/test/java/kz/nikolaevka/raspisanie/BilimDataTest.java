@@ -163,6 +163,20 @@ public class BilimDataTest {
     }
 
     @Test
+    public void reminderFiveMinutesBefore() throws Exception {
+        Schedule.Source src = BilimData.source(BilimData.parseCache("[" + EMPTY_WEEK + "," + WEEK + "]"));
+        Reminders.Next n = Reminders.next(LocalDateTime.of(2026, 11, 2, 7, 0), src);
+        assertEquals(LocalDateTime.of(2026, 11, 2, 8, 25), n.at);
+        n = Reminders.next(LocalDateTime.of(2026, 11, 2, 8, 56), src);
+        assertEquals(LocalTime.of(9, 50), n.lesson.start);
+        n = Reminders.next(LocalDateTime.of(2026, 10, 26, 12, 0), src);
+        assertEquals(LocalDate.of(2026, 11, 2), n.date);
+        Schedule.Lesson l78 = src.day(LocalDate.of(2026, 11, 2)).lessons.get(1);
+        assertEquals("Через 5 минут: 7А + 8А", Reminders.title(l78));
+        assertEquals("09:00–09:45 · 7А: Theme A · 8А: Theme B", Reminders.body(l78));
+    }
+
+    @Test
     public void updateVersionFromTag() {
         assertEquals(12, Updater.codeFromTag("v3.0.12"));
         assertEquals(5, Updater.codeFromTag("v5"));
