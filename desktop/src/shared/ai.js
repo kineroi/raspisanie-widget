@@ -29,7 +29,8 @@ function candidates(key) {
   if (k.startsWith('sk-proj-') || k.startsWith('sk-svcacct-')) return ['openai'];
   // «sk-» без особого начала: так выглядят ключи AnyModel, OpenAI и DeepSeek
   if (k.startsWith('sk-')) return ['anymodel', 'openai', 'deepseek'];
-  return ['mistral'];
+  // незнакомое начало: у Google бывают ключи нового вида, поэтому сначала Gemini
+  return ['gemini', 'mistral'];
 }
 
 /** Свой адрес сервиса: только https, без хвостовых «/» и без «/chat/completions». */
@@ -39,6 +40,11 @@ function normalizeBase(url) {
   if (!/^https:\/\//i.test(u)) u = 'https://' + u.replace(/^http:\/\//i, '');
   u = u.replace(/\/+$/, '').replace(/\/chat\/completions$/, '').replace(/\/models$/, '');
   return u;
+}
+
+/** Похоже ли на адрес сайта (а не, например, «Gemini API Key»). */
+function isValidBase(url) {
+  return /^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(:\d+)?(\/\S*)?$/i.test(normalizeBase(url));
 }
 
 /** Описание подключения: { id, name, kind, base }. id = 'custom' для своего адреса. */
@@ -182,6 +188,6 @@ function label(p, model) {
 }
 
 module.exports = {
-  PROVIDERS, candidates, normalizeBase, provider, resolve, modelsRequest, keyCheckRequest, parseModels, defaultModel,
+  PROVIDERS, candidates, normalizeBase, isValidBase, provider, resolve, modelsRequest, keyCheckRequest, parseModels, defaultModel,
   chatRequest, parseChat, modelsToTry, label,
 };

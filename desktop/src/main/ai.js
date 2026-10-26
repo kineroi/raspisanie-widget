@@ -40,6 +40,7 @@ async function listModels(p, key) {
 async function detect(key, base) {
   const ids = base ? ['custom'] : A.candidates(key);
   let network = false;
+  const tried = [];
   for (const id of ids) {
     const p = A.provider(id, base);
     try {
@@ -49,10 +50,12 @@ async function detect(key, base) {
       return { provider: id, base: p.base, models, model: A.defaultModel(models), name: p.name };
     } catch (e) {
       if (e.code === 0) network = true;
+      tried.push(`${p.name} — ${e.code ? `ответ ${e.code}` : 'нет связи'}`);
     }
   }
-  if (network) throw new AiError(0, 'network');
-  throw new AiError(401, 'rejected');
+  const err = new AiError(network ? 0 : 401, network ? 'network' : 'rejected');
+  err.tried = tried;
+  throw err;
 }
 
 async function expand(cfg, note, classes, theme) {
@@ -85,8 +88,9 @@ function explain(e, p) {
 }
 
 function explainDetect(e) {
-  if (e && e.code === 0) return 'Не удалось проверить ключ: нет связи с сервисом. Проверьте интернет и попробуйте ещё раз.';
-  return 'Ключ не принят ни одним сервисом. Проверьте ключ или укажите адрес сервиса.';
+  const tried = e && e.tried && e.tried.length ? ` Проверено: ${e.tried.join('; ')}.` : '';
+  if (e && e.code === 0) return `Не удалось проверить ключ: нет связи с сервисом. Проверьте интернет и попробуйте ещё раз.${tried}`;
+  return `Ключ не принят. Проверьте, что он скопирован целиком.${tried}`;
 }
 
 module.exports = { detect, listModels, expand, explain, explainDetect };

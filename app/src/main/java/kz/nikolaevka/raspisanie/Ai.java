@@ -61,6 +61,8 @@ final class Ai {
 
     static final class Failure extends IOException {
         final int code;
+        /** Для проверки ключа: какие сервисы спрашивали и что они ответили. */
+        String tried = "";
 
         Failure(int code, String message) {
             super(message);
@@ -78,7 +80,8 @@ final class Ai {
         if (k.startsWith("sk-proj-") || k.startsWith("sk-svcacct-")) return Collections.singletonList("openai");
         // «sk-» без особого начала: так выглядят ключи AnyModel, OpenAI и DeepSeek
         if (k.startsWith("sk-")) return Arrays.asList("anymodel", "openai", "deepseek");
-        return Collections.singletonList("mistral");
+        // незнакомое начало: у Google бывают ключи нового вида, поэтому сначала Gemini
+        return Arrays.asList("gemini", "mistral");
     }
 
     /** Свой адрес сервиса: только https, без хвостовых «/» и без «/chat/completions». */
@@ -88,6 +91,14 @@ final class Ai {
         if (!u.toLowerCase().startsWith("https://")) u = "https://" + u.replaceFirst("(?i)^http://", "");
         u = u.replaceAll("/+$", "").replaceAll("/chat/completions$", "").replaceAll("/models$", "");
         return u;
+    }
+
+    private static final Pattern VALID_BASE =
+            Pattern.compile("^https://[a-z0-9.-]+\\.[a-z]{2,}(:\\d+)?(/\\S*)?$", Pattern.CASE_INSENSITIVE);
+
+    /** Похоже ли на адрес сайта (а не, например, «Gemini API Key»). */
+    static boolean isValidBase(String url) {
+        return VALID_BASE.matcher(normalizeBase(url)).matches();
     }
 
     static Provider provider(String id, String base) {
@@ -298,23 +309,31 @@ final class Ai {
      * и для «sk-…» по очереди AnyModel, OpenAI, DeepSeek. Запрос списка моделей бесплатный.
      */
     static Detected detect(String key, String base) throws IOException {
+        if (base != null && !base.trim().isEmpty() && !isValidBase(base)) throw new Failure(-1, "bad-base");
         String b = normalizeBase(base);
         List<String> ids = b.isEmpty() ? candidates(key) : Collections.singletonList(CUSTOM);
         boolean network = false;
+        StringBuilder tried = new StringBuilder();
         for (String id : ids) {
             Provider p = provider(id, b);
+            int code = 0;
             try {
                 Request check = keyCheckRequest(p, key);
                 if (check != null) http(check);
                 List<String> models = listModels(p, key);
                 return new Detected(id, p.base, models, defaultModel(models), p.name);
             } catch (Failure f) {
-                if (f.code == 0) network = true;
+                code = f.code;
             } catch (IOException e) {
-                network = true;
+                code = 0;
             }
+            if (code == 0) network = true;
+            if (tried.length() > 0) tried.append("; ");
+            tried.append(p.name).append(" — ").append(code == 0 ? "нет связи" : "ответ " + code);
         }
-        throw new Failure(network ? 0 : 401, network ? "network" : "rejected");
+        Failure f = new Failure(network ? 0 : 401, network ? "network" : "rejected");
+        f.tried = tried.toString();
+        throw f;
     }
 
     static String expand(Provider p, String key, String model, String note, String classes, String theme)
@@ -351,9 +370,13 @@ final class Ai {
     }
 
     static String explainDetect(IOException e) {
+        if (e instanceof Failure && ((Failure) e).code == -1)
+            return "Во втором поле должен быть адрес сервиса (https://…). Для Gemini и других сервисов из списка оставьте его пустым.";
+        String tried = e instanceof Failure && !((Failure) e).tried.isEmpty()
+                ? " Проверено: " + ((Failure) e).tried + "." : "";
         if (!(e instanceof Failure) || ((Failure) e).code == 0)
-            return "Не удалось проверить ключ: нет связи с сервисом. Проверьте интернет и попробуйте ещё раз.";
-        return "Ключ не принят ни одним сервисом. Проверьте ключ или укажите адрес сервиса.";
+            return "Не удалось проверить ключ: нет связи с сервисом. Проверьте интернет и попробуйте ещё раз." + tried;
+        return "Ключ не принят. Проверьте, что он скопирован целиком." + tried;
     }
 
     private static String http(Request r) throws IOException {

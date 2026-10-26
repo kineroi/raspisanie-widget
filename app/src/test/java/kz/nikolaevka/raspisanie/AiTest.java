@@ -22,7 +22,7 @@ public class AiTest {
         assertEquals(Collections.singletonList("openrouter"), Ai.candidates("sk-or-v1-XXXX"));
         assertEquals(Collections.singletonList("openai"), Ai.candidates("sk-proj-XXXX"));
         assertEquals(Arrays.asList("anymodel", "openai", "deepseek"), Ai.candidates(" sk-dc9dXXXX "));
-        assertEquals(Collections.singletonList("mistral"), Ai.candidates("abcdef123456"));
+        assertEquals(Arrays.asList("gemini", "mistral"), Ai.candidates("abcdef123456"));
     }
 
     @Test
@@ -30,6 +30,10 @@ public class AiTest {
         assertEquals("https://anymodel.org/v1", Ai.normalizeBase("anymodel.org/v1/"));
         assertEquals("https://x.example/v1", Ai.normalizeBase("https://x.example/v1/chat/completions"));
         assertEquals("https://x.example/v1", Ai.normalizeBase("http://x.example/v1"));
+        assertTrue(Ai.isValidBase("anymodel.org/v1"));
+        assertTrue(Ai.isValidBase("https://llm.example.com:8443/v1"));
+        assertTrue(!Ai.isValidBase("Gemini API Key"));
+        assertTrue(!Ai.isValidBase("AIzaSyXXXX"));
         Ai.Provider custom = Ai.provider(Ai.CUSTOM, "https://llm.example.com/v1/");
         assertEquals("llm.example.com", custom.name);
         assertEquals("https://llm.example.com/v1", custom.base);

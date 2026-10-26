@@ -390,6 +390,7 @@ ipcMain.handle('set-ai-key', async (_e, key, base) => {
     broadcast();
     return { ok: true };
   }
+  if (String(base || '').trim() && !A.isValidBase(base)) return { ok: false, message: 'Во втором поле должен быть адрес сервиса (https://…). Для Gemini и других сервисов из списка оставьте его пустым.' };
   const b = A.normalizeBase(base);
   try {
     const r = await ai.detect(k, b);

@@ -115,8 +115,10 @@ function renderAi() {
   input.style.marginTop = '8px';
   const base = el('input');
   base.type = 'text';
-  base.placeholder = 'Адрес сервиса (необязательно, только для «своего»)';
-  base.style.marginTop = '6px';
+  base.placeholder = 'https://…/v1 (необязательно)';
+  base.style.marginTop = '2px';
+  const baseLab = el('div', 'small muted', 'Адрес сервиса — только если вашего сервиса нет в списке выше. Обычно оставьте пустым:');
+  baseLab.style.marginTop = '8px';
   base.value = data.aiBase || '';
   const msg = el('div', 'small', aiMsg);
   msg.className = aiMsg ? 'error small' : 'small muted';
@@ -143,7 +145,7 @@ function renderAi() {
     row.append(button('Удалить ключ', 'danger', async () => { editingKey = false; aiMsg = ''; await window.api.setAiKey(''); }));
     row.append(button('Отмена', '', () => { editingKey = false; aiMsg = ''; renderAi(); }));
   }
-  box.append(input, base, msg, row);
+  box.append(input, baseLab, base, msg, row);
 }
 
 function renderWeek() {
