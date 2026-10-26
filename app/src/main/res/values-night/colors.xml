@@ -17,4 +17,22 @@
     <color name="w_chip_bg">#3B3018</color>
     <color name="w_chip_text">#FFD54F</color>
     <color name="w_chip_cur_text">#2B1A33</color>
+
+    <!-- Приложение (главный экран), тёмная тема -->
+    <color name="a_bg">#121212</color>
+    <color name="a_surface">#1C1C1C</color>
+    <color name="a_border">#2A2A2A</color>
+    <color name="a_text">#F7F9FC</color>
+    <color name="a_muted">#8F9BB3</color>
+    <color name="a_primary">#C58AF0</color>
+    <color name="a_primary_soft">#2B1B38</color>
+    <color name="a_on_primary">#1C1024</color>
+    <color name="a_blue">#4D79FF</color>
+    <color name="a_blue_soft">#1D253D</color>
+    <color name="a_red">#FF4C58</color>
+    <color name="a_red_soft">#3D1C1F</color>
+    <color name="a_orange">#FFA34C</color>
+    <color name="a_orange_soft">#3D2C1C</color>
+    <color name="a_green">#4FE268</color>
+    <color name="a_green_soft">#1D3721</color>
 </resources>
