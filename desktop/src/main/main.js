@@ -7,6 +7,7 @@ const path = require('path');
 const store = require('./store');
 const bilim = require('./bilim');
 const gemini = require('./gemini');
+const updater = require('./updater');
 const L = require('../shared/logic');
 
 const ASSETS = path.join(__dirname, '..', 'assets');
@@ -51,6 +52,8 @@ function snapshot() {
     aiKeyTail: key ? key.slice(-4) : '',
     autostart: app.getLoginItemSettings().openAtLogin,
     miniOnTop: store.get('miniOnTop', true),
+    version: app.getVersion(),
+    update: updater.getState(),
   };
 }
 
@@ -272,7 +275,12 @@ async function logout() {
 function updateTrayMenu() {
   if (!tray) return;
   const miniVisible = !!(mini && mini.isVisible());
+  const upd = updater.getState();
   tray.setContextMenu(Menu.buildFromTemplate([
+    ...(upd.status === 'ready' ? [
+      { label: `Перезапустить и обновить (версия ${upd.version})`, click: installUpdate },
+      { type: 'separator' },
+    ] : []),
     { label: miniVisible ? 'Скрыть мини-окно' : 'Показать мини-окно', click: () => (miniVisible ? hideMini() : showMini()) },
     { label: 'Открыть расписание', click: showMain },
     { label: syncing ? 'Обновляю…' : 'Обновить из BilimClass', enabled: !syncing && !!store.get('refresh'), click: runSync },
@@ -290,6 +298,11 @@ function updateTrayMenu() {
   ]));
 }
 
+function installUpdate() {
+  quitting = true;
+  updater.installNow();
+}
+
 function setMiniOnTop(on) {
   store.set({ miniOnTop: on });
   if (mini) mini.setAlwaysOnTop(on, 'floating');
@@ -304,6 +317,8 @@ function setAutostart(on) {
 // ---------- Команды из окон ----------
 
 ipcMain.handle('get-data', () => snapshot());
+ipcMain.handle('install-update', () => installUpdate());
+ipcMain.handle('check-update', () => updater.check());
 ipcMain.handle('sync', () => runSync());
 ipcMain.handle('login', () => openLogin());
 ipcMain.handle('logout', () => logout());
@@ -398,6 +413,7 @@ app.whenReady().then(() => {
 
   runSync();
   setInterval(runSync, SYNC_EVERY_MS);
+  updater.start(() => broadcast());
   powerMonitor.on('resume', () => setTimeout(runSync, 15000));
 });
 

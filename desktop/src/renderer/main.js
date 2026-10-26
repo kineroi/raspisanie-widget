@@ -152,8 +152,27 @@ function renderWeek() {
     : 'Пока BilimClass не подключён, показано расписание, записанное в программе (без тем и домашних заданий).';
 }
 
+function renderUpdate() {
+  const u = data.update || { status: 'idle' };
+  const banner = $('updateBanner');
+  banner.textContent = '';
+  banner.hidden = true;
+  if (u.status === 'ready') {
+    banner.hidden = false;
+    banner.append(el('span', '', `Готово обновление программы (версия ${u.version}).`));
+    banner.append(button('Перезапустить и обновить', '', () => window.api.installUpdate()));
+  } else if (u.status === 'downloading') {
+    banner.hidden = false;
+    banner.append(el('span', '', `Загружается обновление ${u.version}… ${u.percent || 0}%`));
+  }
+  $('version').textContent = data.version ? `Версия ${data.version}` : '';
+  $('checkUpdate').disabled = u.status === 'checking' || u.status === 'downloading';
+  $('checkUpdate').textContent = u.status === 'checking' ? 'Проверяю…' : 'Проверить обновления';
+}
+
 function render() {
   if (!data) return;
+  renderUpdate();
   renderBilim();
   // не перерисовывать поле ключа, пока в нём печатают
   const a = document.activeElement;
@@ -166,6 +185,7 @@ function render() {
 $('onTop').addEventListener('change', (e) => window.api.setMiniOnTop(e.target.checked));
 $('autostart').addEventListener('change', (e) => window.api.setAutostart(e.target.checked));
 $('showMini').addEventListener('click', () => window.api.showMini());
+$('checkUpdate').addEventListener('click', () => window.api.checkUpdate());
 
 window.api.onData((d) => { data = d; render(); });
 window.api.getData().then((d) => { data = d; render(); });

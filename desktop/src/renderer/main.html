@@ -35,11 +35,18 @@
     .day.today .nohw { color: #FFCDD2; }
     .empty { color: var(--gray); }
     .day.today .empty { color: var(--lilac); }
+    .banner {
+      background: var(--purple); color: #fff; border-radius: 14px; padding: 10px 14px; margin-bottom: 14px;
+      display: flex; gap: 12px; align-items: center;
+    }
+    .banner span { flex: 1; }
+    .banner button { background: #fff; border-color: #fff; }
     .toggles label { display: flex; gap: 8px; align-items: center; margin-top: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
   <div class="page">
+    <div id="updateBanner" class="banner" hidden></div>
     <h1>Моё расписание</h1>
     <div class="muted">Нажмите на урок, чтобы задать или изменить домашнее задание.</div>
 
@@ -59,6 +66,7 @@
         <label><input type="checkbox" id="onTop"> Мини-окно поверх всех окон</label>
         <label><input type="checkbox" id="autostart"> Запускать вместе с Windows</label>
         <div class="row"><button id="showMini">Показать мини-окно</button></div>
+        <div class="row small muted"><span id="version"></span><button id="checkUpdate">Проверить обновления</button></div>
       </div>
     </div>
 

@@ -10,8 +10,11 @@ android {
         applicationId 'kz.nikolaevka.raspisanie'
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName '3.0'
+        // Номер версии = номер сборки на GitHub (растёт с каждой сборкой).
+        // По нему приложение понимает, что вышло обновление.
+        def run = (System.getenv('GITHUB_RUN_NUMBER') ?: '3') as int
+        versionCode run
+        versionName "3.0.${run}"
     }
 
     // Постоянный ключ подписи: благодаря ему новые версии
