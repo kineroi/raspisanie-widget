@@ -1,0 +1,38 @@
+name: Сборка APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Установить Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip -d "$HOME/gradle"
+          echo "$HOME/gradle/gradle-8.7/bin" >> "$GITHUB_PATH"
+
+      - name: Собрать APK
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          gradle assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk raspisanie-widget.apk
+
+      - name: Опубликовать в Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ github.run_number }}" raspisanie-widget.apk \
+            --title "Расписание, версия ${{ github.run_number }}" \
+            --notes "Скачайте raspisanie-widget.apk на телефон и установите." \
+            --latest
