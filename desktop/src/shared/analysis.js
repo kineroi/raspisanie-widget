@@ -28,12 +28,20 @@
 
   const NO_DIFFICULTIES = 'Затруднений не выявлено';
 
+  const SCHOOL = 'КГУ «Николаевская основная средняя школа отдела образования района Беимбета Майлина»';
+
   const level = (pct) => (pct < 40 ? 'low' : pct < 85 ? 'mid' : 'high');
   const percent = (part, all) => (all ? Math.floor(0.5 + (part / all) * 100) : 0);
 
-  /** «Туйганов Сергей Петрович» → «Туйганов Сергей» (как в справках). */
+  /** «РАСКИН» → «Раскин», «Иванова-ПЕТРОВА» → «Иванова-Петрова»; обычное написание не трогаем. */
+  function fixCase(word) {
+    return word.split('-').map((w) => (w.length > 1 && w === w.toUpperCase() && w !== w.toLowerCase()
+      ? w[0] + w.slice(1).toLowerCase() : w)).join('-');
+  }
+
+  /** «ТУЙГАНОВ Сергей Петрович» → «Туйганов Сергей» (как в справках). */
   function shortName(full) {
-    return String(full || '').trim().split(/\s+/).slice(0, 2).join(' ');
+    return String(full || '').trim().split(/\s+/).slice(0, 2).map(fixCase).join(' ');
   }
 
   /** «Марат Сандибекович Туйганов» (так пишет BilimClass) → «Туйганов Марат Сандибекович». */
@@ -138,6 +146,6 @@
   }
 
   return {
-    REASONS, PLAN, NO_DIFFICULTIES, shortName, teacherName, build, title, goal, fileName, difficultiesText, statsForAi,
+    SCHOOL, REASONS, PLAN, NO_DIFFICULTIES, shortName, teacherName, build, title, goal, fileName, difficultiesText, statsForAi,
   };
 });

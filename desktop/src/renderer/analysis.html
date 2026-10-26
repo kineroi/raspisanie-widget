@@ -22,7 +22,10 @@
     td:first-child, th:first-child { text-align: left; }
     .work { border: 1px solid var(--lilac); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
     .work h3 { margin: 0; font-size: 15px; color: var(--purple-dark); }
-    .files { font-size: 12px; color: var(--gray); }
+    .files { font-size: 12px; color: var(--gray); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+    .chip { background: var(--purple-light); border-radius: 10px; padding: 2px 4px 2px 10px; display: inline-flex; gap: 4px; align-items: center; }
+    .chip button { border: none; background: none; padding: 0 6px; color: var(--red); font-size: 14px; line-height: 1; }
+    #back { margin-bottom: 8px; }
     .ok { color: #2E7D32; }
     .saved { margin-top: 8px; font-size: 13px; }
     .saved a { margin-left: 8px; }
@@ -34,6 +37,7 @@
   <div class="page">
     <div class="top">
       <div>
+        <button id="back" class="small">← Главное окно</button>
         <h1>Справка СОР/СОЧ</h1>
         <div id="status" class="muted small"></div>
       </div>
@@ -50,9 +54,12 @@
 
     <div class="card">
       <div class="grid2">
-        <div>
+        <div style="grid-column: 1 / -1">
           <div class="label">Школа (первая строка справки)</div>
-          <input type="text" id="school" placeholder='Например: КГУ "… средняя школа"'>
+          <div class="row" style="flex-wrap: nowrap">
+            <input type="text" id="school">
+            <button id="schoolReset" class="small" title="Вернуть полное название школы">↺</button>
+          </div>
         </div>
         <div>
           <div class="label">Предмет</div>
