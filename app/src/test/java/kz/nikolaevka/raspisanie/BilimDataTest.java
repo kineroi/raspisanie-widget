@@ -22,7 +22,10 @@ public class BilimDataTest {
                 + "\"class\":{\"label\":\"" + cls + "\"},"
                 + "\"subject\":{\"label\":\"Шетел тілі\",\"isAdditional\":" + additional + "},"
                 + "\"theme\":{\"label\":\"" + theme + "\"},"
-                + "\"homework\":{\"body\":\"" + hw + "\"},"
+                + "\"scheduleUuid\":\"uuid-" + cls.replace(" ", "") + "-" + start + "\","
+                + "\"homework\":{\"body\":\"" + hw + "\",\"files\":"
+                + (cls.equals("3 А") ? "[{\"id\":77,\"name\":\"card\",\"extension\":\".jpeg\",\"link\":\"https://x/y\"}]" : "[]")
+                + "},"
                 + "\"cabinet\":{\"number\":" + (cab == null ? "null" : "\"" + cab + "\"") + "},"
                 + "\"subgroup\":null}";
     }
@@ -107,6 +110,56 @@ public class BilimDataTest {
 
         WidgetState h2 = WidgetState.compute(LocalDateTime.of(2026, 10, 27, 10, 0), src);
         assertEquals("Сегодня уроков нет", h2.status);
+    }
+
+    @Test
+    public void lessonIdsAndFiles() throws Exception {
+        Map<LocalDate, Schedule.Day> days = BilimData.parseWeek(new JSONObject(WEEK));
+        Schedule.Lesson l78 = days.get(LocalDate.of(2026, 11, 2)).lessons.get(1);
+        assertEquals("uuid-7А-09:00", l78.details.get(0).scheduleUuid);
+        assertEquals("uuid-8А-09:00", l78.details.get(1).scheduleUuid);
+        Schedule.Lesson l3 = days.get(LocalDate.of(2026, 11, 3)).lessons.get(1);
+        assertEquals(1, l3.details.get(0).files.size());
+        assertEquals(77, l3.details.get(0).files.get(0).id);
+        assertEquals("card.jpeg", l3.details.get(0).files.get(0).name);
+    }
+
+    @Test
+    public void widgetListDate() throws Exception {
+        String cache = "[" + EMPTY_WEEK + "," + WEEK + "]";
+        Schedule.Source src = BilimData.source(BilimData.parseCache(cache));
+        WidgetState h = WidgetState.compute(LocalDateTime.of(2026, 10, 26, 10, 0), src);
+        assertEquals(LocalDate.of(2026, 11, 2), h.listDate);
+        WidgetState s = WidgetState.compute(LocalDateTime.of(2026, 11, 2, 9, 10), src);
+        assertEquals(LocalDate.of(2026, 11, 2), s.listDate);
+    }
+
+    @Test
+    public void homeworkRules() {
+        assertEquals("Задание: Страница 45, упражнение 3 (письменно), выучить слова.\n"
+                        + "Task: Page 45, exercise 3 (in writing), learn the words.",
+                HomeworkRules.expand("стр 45 упр 3 письм, сл выуч"));
+        assertEquals("Задание: Рабочая тетрадь, страница 12, упражнение 1-2.\n"
+                        + "Task: Workbook, page 12, exercise 1-2.",
+                HomeworkRules.expand("р.т. стр. 12 упр 1-2"));
+        assertEquals("", HomeworkRules.expand("  "));
+    }
+
+    @Test
+    public void geminiRequestAndResponse() throws Exception {
+        JSONObject req = new JSONObject(Gemini.buildRequest("стр 45", "9А", "Heroes"));
+        String user = req.getJSONArray("contents").getJSONObject(0).getJSONArray("parts")
+                .getJSONObject(0).getString("text");
+        assertTrue(user.contains("Класс: 9А"));
+        assertTrue(user.contains("Тема урока: Heroes"));
+        assertTrue(user.contains("Заметка учителя: стр 45"));
+        assertTrue(req.getJSONObject("systemInstruction").toString().contains("Task:"));
+
+        String resp = "{\"candidates\":[{\"content\":{\"parts\":["
+                + "{\"text\":\"думаю...\",\"thought\":true},"
+                + "{\"text\":\"**Задание:** Страница 45.\\n\\nTask: Page 45.\"}]}}]}";
+        assertEquals("Задание: Страница 45.\nTask: Page 45.", Gemini.parseResponse(resp));
+        assertEquals("", Gemini.parseResponse("{\"candidates\":[]}"));
     }
 
     @Test

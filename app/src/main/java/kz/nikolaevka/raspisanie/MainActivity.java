@@ -14,7 +14,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebStorage;
+import android.text.InputType;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -97,6 +99,7 @@ public class MainActivity extends Activity {
 
         col.addView(text("Моё расписание", 24, PURPLE_DARK, true));
         col.addView(bilimCard());
+        col.addView(geminiCard());
 
         // Переключатель недель
         LinearLayout weeks = new LinearLayout(this);
@@ -231,6 +234,86 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    private boolean editingKey = false;
+    private String pendingKey = "";
+
+    private View geminiCard() {
+        LinearLayout card = card(Color.WHITE);
+        String key = Bilim.aiKey(this);
+        if (!key.isEmpty() && !editingKey) {
+            String tail = key.length() > 4 ? key.substring(key.length() - 4) : key;
+            card.addView(text("Gemini подключён (ключ …" + tail + "). Нажмите на урок, чтобы задать домашку.",
+                    14, GRAY, false));
+            Button change = button("Изменить ключ", Color.WHITE, PURPLE_DARK);
+            change.setOnClickListener(v -> {
+                editingKey = true;
+                render();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(40));
+            lp.topMargin = dp(6);
+            card.addView(change, lp);
+            return card;
+        }
+        card.addView(text("Ключ Google Gemini", 15, PURPLE_DARK, true));
+        card.addView(text("Нужен, чтобы ИИ расписывал домашку на русском и английском. "
+                + "Получить бесплатно: aistudio.google.com → Get API key → Create API key. "
+                + "Ключ хранится только на этом телефоне.", 13, GRAY, false));
+        final EditText field = new EditText(this);
+        field.setHint("Вставьте ключ (AIza…)");
+        field.setSingleLine(true);
+        field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        field.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        field.setText(pendingKey);
+        field.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+                pendingKey = s.toString();
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable e) {
+            }
+        });
+        card.addView(field);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        Button save = button("Сохранить ключ", PURPLE, Color.WHITE);
+        save.setOnClickListener(v -> {
+            String k = field.getText().toString().trim();
+            if (k.isEmpty()) {
+                field.setError("Вставьте ключ");
+                return;
+            }
+            Bilim.setAiKey(this, k);
+            pendingKey = "";
+            editingKey = false;
+            Toast.makeText(this, "Ключ сохранён", Toast.LENGTH_SHORT).show();
+            render();
+        });
+        row.addView(save, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        if (!key.isEmpty()) {
+            Button remove = button("Удалить ключ", Color.WHITE, 0xFFC62828);
+            remove.setOnClickListener(v -> {
+                Bilim.setAiKey(this, "");
+                editingKey = false;
+                render();
+            });
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, dp(44), 1f);
+            rp.leftMargin = dp(8);
+            row.addView(remove, rp);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(6);
+        card.addView(row, lp);
+        return card;
+    }
+
     private View dayCard(LocalDate d, Schedule.Day day, WidgetState now) {
         boolean isToday = now != null;
         LinearLayout card = card(isToday ? PURPLE : Color.WHITE);
@@ -259,9 +342,19 @@ public class MainActivity extends Activity {
                     default: break;
                 }
             }
-            TextView row = text(mark + WidgetState.range(l) + "   " + l.title, 15, color, true);
+            // Весь блок урока нажимается — открывается окно «Домашнее задание»
+            LinearLayout block = new LinearLayout(this);
+            block.setOrientation(LinearLayout.VERTICAL);
+            block.setPadding(0, 0, 0, dp(2));
+            final Schedule.Lesson lesson = l;
+            block.setOnClickListener(v -> startActivity(new Intent(this, HomeworkActivity.class)
+                    .putExtra(HomeworkActivity.EXTRA_DATE, d.toString())
+                    .putExtra(HomeworkActivity.EXTRA_START, lesson.start.toString())));
+            card.addView(block);
+
+            TextView row = text(mark + WidgetState.range(l) + "   " + l.title + "  ✏️", 15, color, true);
             row.setPadding(0, dp(8), 0, 0);
-            card.addView(row);
+            block.addView(row);
 
             for (Schedule.Detail det : l.details) {
                 StringBuilder sb = new StringBuilder();
@@ -276,12 +369,18 @@ public class MainActivity extends Activity {
                 if (sb.length() == 0) continue;
                 TextView t = text(sb.toString(), 13, sub, false);
                 t.setPadding(dp(12), dp(2), 0, 0);
-                card.addView(t);
+                block.addView(t);
+                int nFiles = det.files.size();
+                if (nFiles > 0) {
+                    TextView f = text("📎 файлов: " + nFiles, 12, sub, false);
+                    f.setPadding(dp(12), 0, 0, 0);
+                    block.addView(f);
+                }
             }
             if (day.fromBilim && !l.title.startsWith("Кл. час") && l.homeworkSummary() == null) {
-                TextView t = text("ДЗ не указано", 13, isToday ? 0xFFFFCDD2 : 0xFFC62828, false);
+                TextView t = text("ДЗ не указано — нажмите, чтобы задать", 13, isToday ? 0xFFFFCDD2 : 0xFFC62828, false);
                 t.setPadding(dp(12), dp(2), 0, 0);
-                card.addView(t);
+                block.addView(t);
             }
         }
         return card;

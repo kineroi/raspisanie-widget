@@ -32,6 +32,16 @@
             android:exported="false"
             android:label="Вход в BilimClass" />
 
+        <activity
+            android:name=".HomeworkActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="Домашнее задание"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".SyncJob"
             android:exported="false"
