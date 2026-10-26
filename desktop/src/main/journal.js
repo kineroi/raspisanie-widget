@@ -55,6 +55,46 @@ async function quarterLessons(token, school, start, end) {
   return lessons;
 }
 
+/**
+ * Журналы моих классов за выбранную четверть: pick(periods) → период (или null — пропустить класс).
+ * Только чтение. Вызывать внутри bilim.withToken.
+ */
+async function fetchJournals(token, school, journalsInfo, pick) {
+  const H = { token, school };
+  const info = await getJson(`${bilim.API}/api/v2/os/user-info`, H);
+  const user = info.data || info;
+  const chat = user.chatToken;
+  const userId = user.userId;
+  if (!chat || !userId) throw new Error('no chat token');
+  const eduYear = L.eduYear(new Date());
+  const journals = [];
+  for (const ji of journalsInfo) {
+    const periodsResp = await getJson(`${bilim.API}/api/v4/os/frontoffice/journal/period-list/${ji.uuid}?schoolId=${school}&eduYear=${eduYear}`, H);
+    const periods = (periodsResp.data || []).map((p) => ({
+      uuid: p.uuid, n: p.period, start: G.dmy(p.periodStart), end: G.dmy(p.periodEnd),
+    }));
+    const period = pick(periods);
+    if (!period) continue;
+    const quarter = await getJson(`${bilim.API}/api/v4/os/frontoffice/journal/quarter/${ji.uuid}` +
+      `?schoolId=${school}&eduYear=${eduYear}&educationProgramPeriodUuid=${period.uuid}`, H);
+    const q = quarter.data || {};
+    const marks = await getJson(`${journalHost(eduYear)}/journal?schoolId=${school}&eduYear=${eduYear}` +
+      `&userId=${userId}&groupId=${ji.groupId}&subjectId=${q.subjectId || ji.subjectId}` +
+      `&dateFrom=${period.start}T00:00:00.000Z&dateTo=${period.end}T00:00:00.000Z`,
+    { token: chat, school, extra: { external: '1' } });
+    const teacher = (q.teachers || [])[0];
+    journals.push(G.buildJournal({
+      uuid: ji.uuid, groupId: ji.groupId,
+      cls: q.group ? L.compactClass(String(q.group).replace(/\s+(РУС|ҚАЗ|КАЗ)$/i, '')) : ji.cls,
+      group: q.group || ji.cls,
+      subject: q.subjectName || '',
+      teacher: teacher ? teacher.teacherName : '',
+      period,
+    }, quarter, marks));
+  }
+  return journals;
+}
+
 /** Обновить успеваемость из BilimClass. Возвращает 'ok' | 'not_connected' | 'need_login' | 'no_network' | 'no_journals'. */
 function refresh() {
   if (loading) return loading;
@@ -65,35 +105,7 @@ function refresh() {
     const today = L.isoDate(new Date());
     try {
       const result = await bilim.withToken(async (token, school) => {
-        const H = { token, school };
-        const info = await getJson(`${bilim.API}/api/v2/os/user-info`, H);
-        const user = info.data || info;
-        const chat = user.chatToken;
-        const userId = user.userId;
-        if (!chat || !userId) throw new Error('no chat token');
-        const eduYear = L.eduYear(new Date());
-        const journals = [];
-        for (const ji of journalsInfo) {
-          const periodsResp = await getJson(`${bilim.API}/api/v4/os/frontoffice/journal/period-list/${ji.uuid}?schoolId=${school}&eduYear=${eduYear}`, H);
-          const periods = (periodsResp.data || []).map((p) => ({
-            uuid: p.uuid, n: p.period, start: G.dmy(p.periodStart), end: G.dmy(p.periodEnd),
-          }));
-          const period = G.pickPeriod(periods, today);
-          if (!period) continue;
-          const quarter = await getJson(`${bilim.API}/api/v4/os/frontoffice/journal/quarter/${ji.uuid}` +
-            `?schoolId=${school}&eduYear=${eduYear}&educationProgramPeriodUuid=${period.uuid}`, H);
-          const q = quarter.data || {};
-          const marks = await getJson(`${journalHost(eduYear)}/journal?schoolId=${school}&eduYear=${eduYear}` +
-            `&userId=${userId}&groupId=${ji.groupId}&subjectId=${q.subjectId || ji.subjectId}` +
-            `&dateFrom=${period.start}T00:00:00.000Z&dateTo=${period.end}T00:00:00.000Z`,
-          { token: chat, school, extra: { external: '1' } });
-          journals.push(G.buildJournal({
-            uuid: ji.uuid, groupId: ji.groupId,
-            cls: q.group ? L.compactClass(String(q.group).replace(/\s+(РУС|ҚАЗ|КАЗ)$/i, '')) : ji.cls,
-            subject: q.subjectName || '',
-            period,
-          }, quarter, marks));
-        }
+        const journals = await fetchJournals(token, school, journalsInfo, (periods) => G.pickPeriod(periods, today));
         // уроки за четверть нужны только в последнюю неделю четверти
         let lessons = [];
         const soon = journals.find((j) => j.period && Date.parse(j.period.end) - Date.parse(today) <= 7 * 86400000 && j.period.end >= today);
@@ -130,4 +142,4 @@ function snapshot() {
   };
 }
 
-module.exports = { refresh, refreshIfStale, snapshot, discoverJournals };
+module.exports = { refresh, refreshIfStale, snapshot, discoverJournals, fetchJournals };

@@ -233,6 +233,7 @@ function render() {
   $('reminders').checked = data.remindersOn;
   $('gradeAlerts').checked = data.gradeAlertsOn;
   $('openGrades').disabled = !data.connected;
+  $('openAnalysis').disabled = !data.connected;
   $('autostart').checked = data.autostart;
   renderWeek();
 }
@@ -241,6 +242,7 @@ $('onTop').addEventListener('change', (e) => window.api.setMiniOnTop(e.target.ch
 $('reminders').addEventListener('change', (e) => window.api.setReminders(e.target.checked));
 $('gradeAlerts').addEventListener('change', (e) => window.api.setGradeAlerts(e.target.checked));
 $('openGrades').addEventListener('click', () => window.api.openGrades());
+$('openAnalysis').addEventListener('click', () => window.api.openAnalysis());
 $('testReminder').addEventListener('click', async () => {
   if (!(await window.api.testReminder())) alert('Ближайших уроков не найдено.');
 });

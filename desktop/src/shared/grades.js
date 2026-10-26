@@ -38,6 +38,8 @@
     const byStudent = (marks && (marks.data || marks)) || {};
     const sorSched = (q.sorSchedules || []).map((s) => ({ uuid: s.uuid, date: dmy(s.date), max: s.markMax }));
     const sochSched = (q.sochSchedules || []).map((s) => ({ uuid: s.uuid, date: dmy(s.date), max: s.markMax }));
+    // ПО — промежуточное оценивание в 3–4 классах (вместо СОР и СОЧ)
+    const poSched = (q.poSchedules || []).map((s) => ({ uuid: s.uuid, date: dmy(s.date), max: s.markMax }));
     const students = (q.rows || [])
       .filter((r) => r.studentStatus !== false && !r.departDate)
       .map((r) => {
@@ -45,11 +47,13 @@
         const fo = [];
         const sor = {};
         const soch = {};
+        const po = {};
         for (const [sched, c] of Object.entries(cells)) {
           const f = c && c.formattedScore;
           if (f && typeof f.mark === 'number') fo.push({ mark: f.mark, max: f.assessmentMax || 10 });
           if (c && c.sor && typeof c.sor.mark === 'number') sor[sched] = { mark: c.sor.mark, max: c.sor.assessmentMax };
           if (c && c.soch && typeof c.soch.mark === 'number') soch[sched] = { mark: c.soch.mark, max: c.soch.assessmentMax };
+          if (c && c.po && typeof c.po.mark === 'number') po[sched] = { mark: c.po.mark, max: c.po.assessmentMax };
         }
         return {
           id: r.studentGroupUuid,
@@ -57,7 +61,7 @@
           finalScore: r.finalScore ? String(r.finalScore) : '',
           siteGrade: r.recommendedScore ? Number(r.recommendedScore) : null,
           canFinal: r.canGetFinalScore !== false,
-          fo, sor, soch,
+          fo, sor, soch, po,
         };
       });
     const fd = q.finalMarkDeadline || null;
@@ -65,6 +69,7 @@
       ...info,
       sor: sorSched,
       soch: sochSched,
+      po: poSched,
       deadline: fd && fd.endDate ? { start: fd.startDate, end: fd.endDate } : null,
       students,
     };

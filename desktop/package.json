@@ -8,7 +8,7 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/logic.test.js test/grades.test.js test/ai.test.js",
+    "test": "node --test test/logic.test.js test/grades.test.js test/ai.test.js test/analysis.test.js",
     "dist": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
@@ -50,6 +50,8 @@
     ]
   },
   "dependencies": {
-    "electron-updater": "^6.8.11"
+    "electron-updater": "^6.8.11",
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.2"
   }
 }

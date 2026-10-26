@@ -58,14 +58,15 @@ async function detect(key, base) {
   throw err;
 }
 
-async function expand(cfg, note, classes, theme) {
+/** Запрос с запасными моделями: build(model) → запрос, read(ответ) → результат или пусто. */
+async function withFallback(cfg, build, read) {
   const p = A.resolve(cfg);
   let last = null;
   for (const model of A.modelsToTry(p, cfg.model)) {
     try {
-      const req = A.chatRequest(p, cfg.key, model, note, classes, theme);
-      const text = A.parseChat(p, await call(req, 'POST', req.body));
-      if (text) return text;
+      const req = build(p, model);
+      const out = read(p, await call(req, 'POST', req.body));
+      if (out) return out;
       last = new AiError(0, 'empty');
     } catch (e) {
       last = e;
@@ -74,6 +75,16 @@ async function expand(cfg, note, classes, theme) {
     }
   }
   throw last || new AiError(0, 'empty');
+}
+
+function expand(cfg, note, classes, theme) {
+  return withFallback(cfg, (p, model) => A.chatRequest(p, cfg.key, model, note, classes, theme), A.parseChat);
+}
+
+/** Ответ в виде JSON (для справок). opts — как у A.fileRequest. */
+function completeJson(cfg, opts) {
+  return withFallback(cfg, (p, model) => A.fileRequest(p, cfg.key, model, { ...opts, json: true }),
+    (p, body) => A.parseJson(A.rawText(p, body)));
 }
 
 function explain(e, p) {
@@ -93,4 +104,4 @@ function explainDetect(e) {
   return `Ключ не принят. Проверьте, что он скопирован целиком.${tried}`;
 }
 
-module.exports = { detect, listModels, expand, explain, explainDetect };
+module.exports = { detect, listModels, expand, completeJson, explain, explainDetect };

@@ -156,6 +156,79 @@ function chatRequest(p, key, model, note, classes, theme) {
   };
 }
 
+/**
+ * Запрос с файлами (PDF, картинки) и своей подсказкой — для справок СОР/СОЧ.
+ * files: [{ mime, data (base64) }]. Сервисы «как у OpenAI» PDF не принимают — только картинки.
+ */
+function fileRequest(p, key, model, { system, text, files = [], json = false, maxTokens = 8192 }) {
+  if (p.kind === 'gemini') {
+    const parts = files.map((f) => ({ inline_data: { mime_type: f.mime, data: f.data } }));
+    parts.push({ text });
+    const generationConfig = { temperature: 0.2, maxOutputTokens: maxTokens };
+    if (json) generationConfig.responseMimeType = 'application/json';
+    return {
+      url: `${p.base}/models/${model}:generateContent`,
+      headers: { 'x-goog-api-key': key },
+      body: { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts }], generationConfig },
+    };
+  }
+  if (p.kind === 'anthropic') {
+    const content = files.map((f) => (f.mime === 'application/pdf'
+      ? { type: 'document', source: { type: 'base64', media_type: f.mime, data: f.data } }
+      : { type: 'image', source: { type: 'base64', media_type: f.mime, data: f.data } }));
+    content.push({ type: 'text', text });
+    return {
+      url: `${p.base}/messages`,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: { model, system, messages: [{ role: 'user', content }], max_tokens: maxTokens, temperature: 0.2 },
+    };
+  }
+  if (files.some((f) => f.mime === 'application/pdf')) {
+    const err = new Error('pdf-unsupported');
+    err.code = 'pdf';
+    throw err;
+  }
+  const content = files.map((f) => ({ type: 'image_url', image_url: { url: `data:${f.mime};base64,${f.data}` } }));
+  content.push({ type: 'text', text });
+  return {
+    url: `${p.base}/chat/completions`,
+    headers: { Authorization: `Bearer ${key}` },
+    body: {
+      model,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: files.length ? content : text }],
+      temperature: 0.2,
+      max_tokens: maxTokens,
+    },
+  };
+}
+
+/** Достать объект JSON из ответа (модели иногда оборачивают его в текст или ```json). */
+function parseJson(text) {
+  const t = String(text || '');
+  const from = t.indexOf('{');
+  const to = t.lastIndexOf('}');
+  if (from < 0 || to <= from) return null;
+  try {
+    return JSON.parse(t.slice(from, to + 1));
+  } catch {
+    return null;
+  }
+}
+
+/** Текст ответа без чистки разметки (для JSON). */
+function rawText(p, body) {
+  if (p.kind === 'gemini') {
+    const c = body && body.candidates && body.candidates[0];
+    return ((c && c.content && c.content.parts) || []).filter((x) => !x.thought).map((x) => x.text || '').join('');
+  }
+  if (p.kind === 'anthropic') {
+    return ((body && body.content) || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('');
+  }
+  const c = body && body.choices && body.choices[0];
+  const content = c && c.message && c.message.content;
+  return Array.isArray(content) ? content.map((x) => (x && x.text) || '').join('') : String(content || '');
+}
+
 function cleanup(s) {
   return String(s || '')
     .replace(/<think>[\s\S]*?<\/think>/g, '') // «размышления» некоторых моделей
@@ -189,5 +262,5 @@ function label(p, model) {
 
 module.exports = {
   PROVIDERS, candidates, normalizeBase, isValidBase, provider, resolve, modelsRequest, keyCheckRequest, parseModels, defaultModel,
-  chatRequest, parseChat, modelsToTry, label,
+  chatRequest, parseChat, modelsToTry, label, fileRequest, parseJson, rawText,
 };

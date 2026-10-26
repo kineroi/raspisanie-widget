@@ -1,7 +1,7 @@
 'use strict';
 // «Моё расписание» для Windows: мини-окно поверх всех окон, основное окно, окно домашки, трей.
 const {
-  app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, powerMonitor, screen, session, shell,
+  app, BrowserWindow, Tray, Menu, dialog, ipcMain, nativeImage, powerMonitor, screen, session, shell,
 } = require('electron');
 const path = require('path');
 const store = require('./store');
@@ -11,6 +11,7 @@ const A = require('../shared/ai');
 const updater = require('./updater');
 const reminders = require('./reminders');
 const journal = require('./journal');
+const analysis = require('./analysis');
 const digest = require('./digest');
 const L = require('../shared/logic');
 
@@ -228,6 +229,31 @@ function openHomework(date, start) {
 }
 
 let gradesWin = null;
+let analysisWin = null;
+
+function openAnalysis() {
+  if (analysisWin && !analysisWin.isDestroyed()) {
+    analysisWin.show();
+    analysisWin.focus();
+    return;
+  }
+  analysisWin = new BrowserWindow({
+    width: 1060,
+    height: 860,
+    minWidth: 680,
+    minHeight: 500,
+    title: 'Справка СОР/СОЧ',
+    backgroundColor: '#F3E5F5',
+    icon: path.join(ASSETS, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: webPrefs(),
+  });
+  analysisWin.removeMenu();
+  analysisWin.loadFile(path.join(RENDERER, 'analysis.html'));
+  analysisWin.on('closed', () => {
+    analysisWin = null;
+  });
+}
 
 function openGrades() {
   if (gradesWin && !gradesWin.isDestroyed()) {
@@ -426,6 +452,29 @@ ipcMain.handle('set-grade-alerts', (_e, on) => {
   broadcast();
 });
 ipcMain.handle('open-grades', () => openGrades());
+ipcMain.handle('open-analysis', () => openAnalysis());
+ipcMain.handle('an-load', (_e, quarter) => analysis.load(Number(quarter) || 1));
+ipcMain.handle('an-settings', () => analysis.settings());
+ipcMain.handle('an-save-settings', (_e, s) => analysis.saveSettings(s || {}));
+ipcMain.handle('an-texts', (_e, cls, quarter) => analysis.getTexts(String(cls), Number(quarter)));
+ipcMain.handle('an-set-texts', (_e, cls, quarter, texts) => analysis.setTexts(String(cls), Number(quarter), texts || {}));
+ipcMain.handle('an-pick-files', async (e) => {
+  const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+    title: 'Работа СОР/СОЧ/ПО (задания, цели, критерии)',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Работы', extensions: ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc'] }],
+  });
+  return r.canceled ? [] : r.filePaths;
+});
+ipcMain.handle('an-prepare', (_e, cls, quarter, label, paths) =>
+  analysis.prepare(String(cls), Number(quarter), String(label), (paths || []).map(String)));
+ipcMain.handle('an-save', (_e, cls, quarter, texts) => analysis.save(String(cls), Number(quarter), texts || {}));
+ipcMain.handle('an-open', (_e, file, folder) => {
+  const f = String(file || '');
+  if (!f) return;
+  if (folder) shell.showItemInFolder(f);
+  else shell.openPath(f);
+});
 ipcMain.handle('grades-data', () => journal.snapshot());
 ipcMain.handle('grades-refresh', async () => {
   const r = await journal.refresh();
@@ -540,6 +589,19 @@ app.whenReady().then(() => {
   });
 });
 
+/** Выдуманные журналы для окна справок: 4 класс (ПО) и 5 класс (СОР и СОЧ). */
+function smokeAnalysis() {
+  const st = (i, po, sor, soch) => ({ name: `Ученик${i} Тест`, po, sor, soch });
+  analysis.useSample([
+    { cls: '4А', group: '4 А РУС', subject: 'Иностранный язык', teacher: 'Имя Отчество Фамилия', sor: [], soch: [],
+      po: [{ uuid: 'p1', date: '2026-09-21', max: 16 }, { uuid: 'p2', date: '2026-10-19', max: 16 }],
+      students: [16, 8, 11].map((m, i) => st(i, { p1: { mark: m, max: 16 }, p2: { mark: 12, max: 16 } }, {}, {})) },
+    { cls: '5А', group: '5 А РУС', subject: 'Иностранный язык', teacher: 'Имя Отчество Фамилия', po: [],
+      sor: [{ uuid: 's1', date: '2026-09-23', max: 13 }], soch: [{ uuid: 'c1', date: '2026-10-21', max: 20 }],
+      students: [4, 12].map((m, i) => st(i, {}, { s1: { mark: m, max: 13 } }, { c1: { mark: 15, max: 20 } })) },
+  ], app.getPath('userData'));
+}
+
 /** Выдуманные данные успеваемости для самопроверки окна. */
 function smokeGrades() {
   const G = require('../shared/grades');
@@ -564,6 +626,7 @@ function smokeGrades() {
 
 function startSmoke() {
   smokeGrades();
+  smokeAnalysis();
   app.on('browser-window-created', (_e, w) => {
     w.webContents.on('console-message', (event) => {
       if (event.level === 'error') smokeErrors.push(`console: ${event.message}`);
@@ -575,6 +638,18 @@ function startSmoke() {
   process.on('uncaughtException', (err) => smokeErrors.push(`main: ${err.stack || err}`));
   setTimeout(() => openHomework('2026-10-19', '09:00'), 4000);
   setTimeout(() => openGrades(), 4500);
+  setTimeout(() => openAnalysis(), 4700);
+  setTimeout(async () => {
+    try {
+      if (!analysisWin) { smokeErrors.push('analysis window not opened'); return; }
+      const r = await analysis.save('4А', 1, { items: { 'ПО 1': { achieved: 'Listening (4.1.3.1)', difficult: 'Writing (4.4.3.1)' } }, difficulties: 'ПО 1: ошибки.' });
+      if (!r.ok || !require('fs').existsSync(r.file)) smokeErrors.push(`analysis save: ${r.message || 'no file'}`);
+      const cards = await analysisWin.webContents.executeJavaScript("document.querySelectorAll('#classes .card').length", true);
+      if (cards !== 2) smokeErrors.push(`analysis window: ${cards} cards`);
+    } catch (err) {
+      smokeErrors.push(`analysis check: ${err.stack || err}`);
+    }
+  }, 6500);
   // Проверка напоминаний: расчёт и показ уведомления не должны падать
   setTimeout(() => {
     try {
