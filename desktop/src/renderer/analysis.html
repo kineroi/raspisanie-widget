@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Справка СОР/СОЧ</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { background: var(--purple-light); }
+    .page { max-width: 1000px; margin: 0 auto; padding: 20px 20px 40px; }
+    h1 { color: var(--purple-dark); font-size: 24px; margin: 0; }
+    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+    .card { background: #fff; border-radius: 16px; padding: 14px 16px; margin-top: 12px; }
+    .card h2 { margin: 0 0 8px; font-size: 17px; color: var(--purple-dark); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .card h2 .muted { font-size: 13px; font-weight: 400; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+    @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+    .label { font-size: 12px; color: var(--gray); margin: 8px 0 3px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: center; color: var(--gray); font-weight: 600; padding: 5px 6px; border-bottom: 1px solid #eee; }
+    td { text-align: center; padding: 5px 6px; border-bottom: 1px solid #f3eef6; font-variant-numeric: tabular-nums; }
+    td:first-child, th:first-child { text-align: left; }
+    .work { border: 1px solid var(--lilac); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
+    .work h3 { margin: 0; font-size: 15px; color: var(--purple-dark); }
+    .files { font-size: 12px; color: var(--gray); }
+    .ok { color: #2E7D32; }
+    .saved { margin-top: 8px; font-size: 13px; }
+    .saved a { margin-left: 8px; }
+    details summary { cursor: pointer; color: var(--purple-dark); font-weight: 600; }
+    select { margin-left: 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="top">
+      <div>
+        <h1>Справка СОР/СОЧ</h1>
+        <div id="status" class="muted small"></div>
+      </div>
+      <div class="row">
+        <label class="small muted">Четверть:
+          <select id="quarter">
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+          </select>
+        </label>
+        <button id="load" class="primary">Загрузить из BilimClass</button>
+        <button id="saveAll" disabled>💾 Сохранить все классы</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid2">
+        <div>
+          <div class="label">Школа (первая строка справки)</div>
+          <input type="text" id="school" placeholder='Например: КГУ "… средняя школа"'>
+        </div>
+        <div>
+          <div class="label">Предмет</div>
+          <input type="text" id="subject">
+        </div>
+      </div>
+      <div class="label">Папка для справок</div>
+      <div class="row"><span id="folder" class="small"></span><button id="openFolder" class="small">Открыть папку</button></div>
+      <details style="margin-top: 10px">
+        <summary>Пункты 3 и 4 (одинаковые во всех справках)</summary>
+        <div class="label">3. Причины затруднений</div>
+        <textarea id="reasons" rows="3"></textarea>
+        <div class="label">4. Планируемая работа</div>
+        <textarea id="plan" rows="7"></textarea>
+      </details>
+      <div class="note small muted" style="margin-top: 8px">
+        Цифры и списки учеников берутся из журнала BilimClass и остаются на компьютере.
+        В нейросеть уходят только файлы работ (задания, цели, критерии) и общие цифры класса — без фамилий.
+      </div>
+    </div>
+
+    <div id="classes"></div>
+  </div>
+  <script src="../shared/analysis.js"></script>
+  <script src="analysis.js"></script>
+</body>
+</html>
