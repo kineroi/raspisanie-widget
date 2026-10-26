@@ -7,6 +7,7 @@ let data = null;
 let weekOffset = 0;
 let message = '';
 let editingKey = false;
+let aiMsg = '';
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -63,37 +64,86 @@ function renderBilim() {
   }
 }
 
-function renderGemini() {
-  const box = $('geminiView');
+function renderAi() {
+  const box = $('aiView');
   box.textContent = '';
   if (data.aiKeyTail && !editingKey) {
-    box.append(el('div', 'muted', `Подключён (ключ …${data.aiKeyTail}).`));
+    const st = el('div', 'ai-ok');
+    st.append(el('span', 'dot'), ` Подключено: ${data.aiName}`);
+    box.append(st, el('div', 'muted small', `Ключ …${data.aiKeyTail}${data.aiBase ? ` · ${data.aiBase}` : ''}`));
+    const models = data.aiModels || [];
+    if (models.length) {
+      const sel = el('select');
+      for (const m of models) {
+        const o = el('option', '', m);
+        o.value = m;
+        sel.append(o);
+      }
+      if (data.aiModel && !models.includes(data.aiModel)) {
+        const o = el('option', '', data.aiModel);
+        o.value = data.aiModel;
+        sel.prepend(o);
+      }
+      sel.value = data.aiModel || models[0];
+      sel.addEventListener('change', () => window.api.setAiModel(sel.value));
+      const lab = el('label', 'small muted', 'Модель:');
+      lab.append(sel);
+      box.append(lab);
+    }
+    if (aiMsg) box.append(el('div', 'error small', aiMsg));
     const row = el('div', 'row');
-    row.append(button('Изменить ключ', '', () => { editingKey = true; renderGemini(); }));
+    row.append(button('Изменить ключ', '', () => { editingKey = true; aiMsg = ''; renderAi(); }));
+    row.append(button('Обновить список моделей', '', async (e) => {
+      e.target.disabled = true;
+      const r = await window.api.refreshAiModels();
+      aiMsg = r.ok ? '' : r.message || '';
+      renderAi();
+    }));
     box.append(row);
     return;
   }
   box.append(el('div', 'muted small',
-    'Нужен, чтобы ИИ расписывал домашку на русском и английском. Ключ хранится только на этом компьютере (в зашифрованном виде).'));
-  const link = el('a', 'small', 'Получить ключ: aistudio.google.com → Get API key');
+    'Нужен, чтобы ИИ расписывал домашку на русском и английском. Подходят ключи Google Gemini, Claude, Groq, '
+    + 'OpenRouter, OpenAI, DeepSeek, Mistral, AnyModel. Сервис определяется сам. Ключ хранится только на этом компьютере (в зашифрованном виде).'));
+  const link = el('a', 'small', 'Бесплатный ключ: aistudio.google.com → Get API key');
   link.href = '#';
   link.addEventListener('click', (e) => { e.preventDefault(); window.api.openExternal('https://aistudio.google.com/apikey'); });
   box.append(link);
   const input = el('input');
   input.type = 'password';
-  input.placeholder = 'Вставьте ключ (AIza…)';
+  input.placeholder = 'Вставьте ключ (AIza…, sk-…, gsk_…)';
   input.style.marginTop = '8px';
+  const base = el('input');
+  base.type = 'text';
+  base.placeholder = 'Адрес сервиса (необязательно, только для «своего»)';
+  base.style.marginTop = '6px';
+  base.value = data.aiBase || '';
+  const msg = el('div', 'small', aiMsg);
+  msg.className = aiMsg ? 'error small' : 'small muted';
   const row = el('div', 'row');
-  row.append(button('Сохранить ключ', 'primary', async () => {
+  const save = button('Проверить и сохранить', 'primary', async () => {
     if (!input.value.trim()) { input.focus(); return; }
-    editingKey = false;
-    await window.api.setAiKey(input.value.trim());
-  }));
+    save.disabled = true;
+    msg.className = 'small muted';
+    msg.textContent = 'Проверяю ключ…';
+    const r = await window.api.setAiKey(input.value.trim(), base.value.trim());
+    save.disabled = false;
+    if (r.ok) {
+      editingKey = false;
+      aiMsg = '';
+      renderAi();
+    } else {
+      aiMsg = r.message;
+      msg.className = 'error small';
+      msg.textContent = r.message;
+    }
+  });
+  row.append(save);
   if (data.aiKeyTail) {
-    row.append(button('Удалить ключ', 'danger', async () => { editingKey = false; await window.api.setAiKey(''); }));
-    row.append(button('Отмена', '', () => { editingKey = false; renderGemini(); }));
+    row.append(button('Удалить ключ', 'danger', async () => { editingKey = false; aiMsg = ''; await window.api.setAiKey(''); }));
+    row.append(button('Отмена', '', () => { editingKey = false; aiMsg = ''; renderAi(); }));
   }
-  box.append(input, row);
+  box.append(input, base, msg, row);
 }
 
 function renderWeek() {
@@ -176,7 +226,7 @@ function render() {
   renderBilim();
   // не перерисовывать поле ключа, пока в нём печатают
   const a = document.activeElement;
-  if (!(a && a.tagName === 'INPUT' && $('geminiView').contains(a))) renderGemini();
+  if (!(a && ['INPUT', 'SELECT', 'BUTTON'].includes(a.tagName) && $('aiView').contains(a))) renderAi();
   $('onTop').checked = data.miniOnTop;
   $('reminders').checked = data.remindersOn;
   $('gradeAlerts').checked = data.gradeAlertsOn;

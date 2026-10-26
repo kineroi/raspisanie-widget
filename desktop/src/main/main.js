@@ -6,7 +6,8 @@ const {
 const path = require('path');
 const store = require('./store');
 const bilim = require('./bilim');
-const gemini = require('./gemini');
+const ai = require('./ai');
+const A = require('../shared/ai');
 const updater = require('./updater');
 const reminders = require('./reminders');
 const journal = require('./journal');
@@ -44,8 +45,19 @@ if (!gotLock) {
 
 // ---------- Данные для окон ----------
 
+function aiConfig() {
+  return {
+    key: store.get('aiKey'),
+    provider: store.get('aiProvider', ''),
+    base: store.get('aiBase', ''),
+    model: store.get('aiModel', ''),
+  };
+}
+
 function snapshot() {
-  const key = store.get('aiKey');
+  const cfg = aiConfig();
+  const key = cfg.key;
+  const p = A.resolve(cfg);
   return {
     days: bilim.cachedDays(),
     connected: !!store.get('refresh'),
@@ -53,6 +65,11 @@ function snapshot() {
     lastSync: store.get('lastSync', 0),
     syncing,
     aiKeyTail: key ? key.slice(-4) : '',
+    aiName: p ? p.name : '',
+    aiLabel: p ? A.label(p, cfg.model || (p.kind === 'gemini' ? L.GEMINI_MODELS[0] : '')) : '',
+    aiModel: cfg.model,
+    aiModels: store.get('aiModels', []),
+    aiBase: cfg.provider === 'custom' ? cfg.base : '',
     autostart: app.getLoginItemSettings().openAtLogin,
     miniOnTop: store.get('miniOnTop', true),
     version: app.getVersion(),
@@ -365,9 +382,40 @@ ipcMain.handle('check-update', () => updater.check());
 ipcMain.handle('sync', () => runSync());
 ipcMain.handle('login', () => openLogin());
 ipcMain.handle('logout', () => logout());
-ipcMain.handle('set-ai-key', (_e, key) => {
-  store.set({ aiKey: String(key || '').trim() || null });
+// Ключ проверяется сразу: какой сервис его принял, какие модели доступны
+ipcMain.handle('set-ai-key', async (_e, key, base) => {
+  const k = String(key || '').trim();
+  if (!k) {
+    store.set({ aiKey: null, aiProvider: null, aiBase: null, aiModel: null, aiModels: null });
+    broadcast();
+    return { ok: true };
+  }
+  const b = A.normalizeBase(base);
+  try {
+    const r = await ai.detect(k, b);
+    store.set({ aiKey: k, aiProvider: r.provider, aiBase: r.provider === 'custom' ? r.base : null, aiModel: r.model || null, aiModels: r.models });
+    broadcast();
+    return { ok: true, name: r.name, model: r.model };
+  } catch (e) {
+    return { ok: false, message: ai.explainDetect(e) };
+  }
+});
+ipcMain.handle('set-ai-model', (_e, model) => {
+  store.set({ aiModel: String(model || '') || null });
   broadcast();
+});
+ipcMain.handle('refresh-ai-models', async () => {
+  const cfg = aiConfig();
+  const p = A.resolve(cfg);
+  if (!p) return { ok: false };
+  try {
+    const models = await ai.listModels(p, cfg.key);
+    store.set({ aiModels: models, aiProvider: p.id });
+    broadcast();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: ai.explainDetect(e) };
+  }
 });
 ipcMain.handle('set-autostart', (_e, on) => setAutostart(!!on));
 ipcMain.handle('set-mini-on-top', (_e, on) => setMiniOnTop(!!on));
@@ -407,12 +455,13 @@ ipcMain.handle('open-external', (_e, url) => {
 });
 
 ipcMain.handle('expand', async (_e, note, classes, theme) => {
-  const key = store.get('aiKey');
-  if (!key) return { text: L.expandRules(note), message: 'Расписано по правилам (без ИИ). Проверьте текст.', ok: true };
+  const cfg = aiConfig();
+  if (!cfg.key) return { text: L.expandRules(note), message: 'Расписано по правилам (без ИИ). Проверьте текст.', ok: true };
+  const p = A.resolve(cfg);
   try {
-    return { text: await gemini.expand(key, note, classes, theme), message: 'Готово. Проверьте текст перед отправкой.', ok: true };
+    return { text: await ai.expand(cfg, note, classes, theme), message: `Готово (${p.name}). Проверьте текст перед отправкой.`, ok: true };
   } catch (e) {
-    return { text: L.expandRules(note), message: gemini.explain(e), ok: false };
+    return { text: L.expandRules(note), message: ai.explain(e, p), ok: false };
   }
 });
 

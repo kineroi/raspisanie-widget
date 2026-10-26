@@ -125,6 +125,8 @@ async function init() {
     }
   }
   $('noKey').hidden = !!data.aiKeyTail;
+  $('aiLabel').hidden = !data.aiKeyTail;
+  $('aiLabel').textContent = `Расписывает: ${data.aiLabel}`;
   const current = lesson.details.find((x) => x.homework);
   $('result').value = current ? current.homework : '';
   renderExisting();

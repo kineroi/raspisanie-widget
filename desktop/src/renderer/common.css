@@ -49,6 +49,18 @@ input[type=text], input[type=password], textarea {
   color: var(--text);
 }
 textarea { resize: vertical; }
+select {
+  font: inherit;
+  max-width: 100%;
+  margin: 6px 0 0 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--lilac-2);
+  border-radius: 10px;
+  background: #FBF7FD;
+  color: var(--text);
+}
+.ai-ok { font-weight: 600; color: var(--text); }
+.ai-ok .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #2E9E5B; }
 
 .muted { color: var(--gray); }
 .small { font-size: 12px; }

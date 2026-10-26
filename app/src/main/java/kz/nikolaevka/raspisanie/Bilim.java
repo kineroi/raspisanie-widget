@@ -17,7 +17,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -69,10 +73,13 @@ final class Bilim {
 
     /** Выйти: удалить вход и сохранённое расписание. */
     static void logout(Context c) {
-        // ключ Gemini — не часть входа в BilimClass, его сохраняем
-        String aiKey = aiKey(c);
-        prefs(c).edit().clear().apply();
-        if (!aiKey.isEmpty()) setAiKey(c, aiKey);
+        // нейросеть — не часть входа в BilimClass, её настройки сохраняем
+        SharedPreferences p = prefs(c);
+        Map<String, String> ai = new HashMap<>();
+        for (String k : AI_KEYS) ai.put(k, p.getString(k, ""));
+        SharedPreferences.Editor e = p.edit().clear();
+        for (Map.Entry<String, String> kv : ai.entrySet()) if (!kv.getValue().isEmpty()) e.putString(kv.getKey(), kv.getValue());
+        e.apply();
         Journals.clear(c);
         //noinspection ResultOfMethodCallIgnored
         new File(c.getFilesDir(), CACHE_FILE).delete();
@@ -164,16 +171,61 @@ final class Bilim {
         }
     }
 
-    // ---------- Ключ Gemini (хранится только на телефоне) ----------
+    // ---------- Нейросеть: ключ, сервис, модель (хранится только на телефоне) ----------
 
-    private static final String K_AI_KEY = "ai_key";
+    private static final String K_AI_KEY = "ai_key", K_AI_PROVIDER = "ai_provider", K_AI_BASE = "ai_base",
+            K_AI_MODEL = "ai_model", K_AI_MODELS = "ai_models";
+    private static final String[] AI_KEYS = {K_AI_KEY, K_AI_PROVIDER, K_AI_BASE, K_AI_MODEL, K_AI_MODELS};
 
     static String aiKey(Context c) {
         return prefs(c).getString(K_AI_KEY, "");
     }
 
-    static void setAiKey(Context c, String key) {
-        prefs(c).edit().putString(K_AI_KEY, key == null ? "" : key.trim()).apply();
+    static String aiModel(Context c) {
+        return prefs(c).getString(K_AI_MODEL, "");
+    }
+
+    static String aiBase(Context c) {
+        return prefs(c).getString(K_AI_BASE, "");
+    }
+
+    static List<String> aiModels(Context c) {
+        String s = prefs(c).getString(K_AI_MODELS, "");
+        return s.isEmpty() ? new ArrayList<>() : new ArrayList<>(Arrays.asList(s.split("
+")));
+    }
+
+    /** Подключённый сервис (или null, если ключа нет). */
+    static Ai.Provider aiProvider(Context c) {
+        SharedPreferences p = prefs(c);
+        return Ai.resolve(p.getString(K_AI_KEY, ""), p.getString(K_AI_PROVIDER, ""), p.getString(K_AI_BASE, ""));
+    }
+
+    /** Сохранить проверенный ключ вместе с сервисом и моделями. */
+    static void setAi(Context c, String key, Ai.Detected d) {
+        prefs(c).edit()
+                .putString(K_AI_KEY, key.trim())
+                .putString(K_AI_PROVIDER, d.providerId)
+                .putString(K_AI_BASE, Ai.CUSTOM.equals(d.providerId) ? d.base : "")
+                .putString(K_AI_MODEL, d.model)
+                .putString(K_AI_MODELS, String.join("
+", d.models))
+                .apply();
+    }
+
+    static void setAiModel(Context c, String model) {
+        prefs(c).edit().putString(K_AI_MODEL, model == null ? "" : model).apply();
+    }
+
+    static void setAiModels(Context c, String providerId, List<String> models) {
+        prefs(c).edit().putString(K_AI_PROVIDER, providerId).putString(K_AI_MODELS, String.join("
+", models)).apply();
+    }
+
+    static void clearAi(Context c) {
+        SharedPreferences.Editor e = prefs(c).edit();
+        for (String k : AI_KEYS) e.remove(k);
+        e.apply();
     }
 
     // ---------- Домашнее задание ----------
