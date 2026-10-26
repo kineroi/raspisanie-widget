@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Моё расписание</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    html, body { background: transparent; overflow: hidden; user-select: none; }
+    .widget {
+      margin: 6px;
+      padding: 10px 14px 12px;
+      border-radius: 20px;
+      background: linear-gradient(315deg, #7B1FA2, #4A148C);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(40, 0, 70, .35);
+      -webkit-app-region: drag;
+    }
+    .top { display: flex; align-items: center; gap: 12px; }
+    .clock { font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+    .day { font-weight: 700; font-size: 15px; }
+    .date { color: var(--lilac); font-size: 12px; }
+    .tools { margin-left: auto; display: flex; gap: 4px; align-self: flex-start; -webkit-app-region: no-drag; }
+    .tools button {
+      background: rgba(255,255,255,.12); border: none; color: #fff; width: 26px; height: 26px;
+      padding: 0; border-radius: 8px; font-size: 13px; line-height: 26px;
+    }
+    .tools button:hover { background: rgba(255,255,255,.28); }
+    .status {
+      margin-top: 8px; padding: 6px 10px; border-radius: 12px; background: rgba(255,255,255,.2);
+    }
+    .status .main { font-weight: 700; font-size: 14px; }
+    .status .count, .status .sub { color: var(--accent); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .status .sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .title {
+      margin: 8px 0 2px; color: var(--lilac-2); font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .3px;
+    }
+    .lesson {
+      display: flex; gap: 6px; padding: 2px 6px; border-radius: 8px; font-size: 12px;
+      cursor: pointer; -webkit-app-region: no-drag; border: 1px solid transparent;
+    }
+    .lesson:hover { background: rgba(255,255,255,.14); }
+    .lesson .t { width: 84px; flex: none; font-variant-numeric: tabular-nums; }
+    .lesson .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lesson.past { color: rgba(255,255,255,.5); }
+    .lesson.current { background: #fff; color: var(--purple-dark); font-weight: 700; }
+    .lesson.next { color: var(--accent); font-weight: 700; border-color: var(--accent); background: rgba(255,255,255,.1); }
+    .hint { color: var(--lilac-2); font-size: 10px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="widget" id="w">
+    <div class="top">
+      <div class="clock" id="clock">--:--</div>
+      <div>
+        <div class="day" id="day"></div>
+        <div class="date" id="date"></div>
+      </div>
+      <div class="tools">
+        <button id="open" title="Открыть расписание">☰</button>
+        <button id="hide" title="Скрыть (вернуть — значок в трее)">—</button>
+      </div>
+    </div>
+    <div class="status">
+      <div class="main" id="status"></div>
+      <div class="count" id="count"></div>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="title" id="listTitle"></div>
+    <div id="list"></div>
+    <div class="hint">Нажмите на урок, чтобы задать домашку</div>
+  </div>
+  <script src="../shared/logic.js"></script>
+  <script src="mini.js"></script>
+</body>
+</html>

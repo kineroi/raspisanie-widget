@@ -1,0 +1,59 @@
+:root {
+  --purple-dark: #4A148C;
+  --purple: #7B1FA2;
+  --purple-mid: #6A1B9A;
+  --purple-light: #F3E5F5;
+  --lilac: #E1BEE7;
+  --lilac-2: #CE93D8;
+  --accent: #FFD54F;
+  --text: #222;
+  --gray: #555;
+  --red: #C62828;
+  --card: #FFFFFF;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--text);
+}
+
+button {
+  font: inherit;
+  border: 1px solid var(--purple);
+  background: #fff;
+  color: var(--purple-dark);
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background .12s, opacity .12s;
+}
+button:hover { background: var(--purple-light); }
+button.primary { background: var(--purple); color: #fff; border-color: var(--purple); }
+button.primary:hover { background: var(--purple-mid); }
+button.danger { color: var(--red); border-color: var(--red); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--purple); outline-offset: 1px; }
+
+input[type=text], input[type=password], textarea {
+  font: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--lilac-2);
+  border-radius: 10px;
+  background: #FBF7FD;
+  color: var(--text);
+}
+textarea { resize: vertical; }
+
+.muted { color: var(--gray); }
+.small { font-size: 12px; }
+.error { color: var(--red); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.grow { flex: 1; }
+[hidden] { display: none !important; }
+a { color: var(--purple); }

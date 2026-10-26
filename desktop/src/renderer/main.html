@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Моё расписание</title>
+  <link rel="stylesheet" href="common.css">
+  <style>
+    body { background: var(--purple-light); }
+    .page { max-width: 820px; margin: 0 auto; padding: 22px 20px 40px; }
+    h1 { color: var(--purple-dark); font-size: 26px; margin: 0 0 4px; }
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+    @media (max-width: 760px) { .cards { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border-radius: 16px; padding: 14px 16px; }
+    .card h2 { font-size: 15px; color: var(--purple-dark); margin: 0 0 6px; }
+    .card .row { margin-top: 10px; }
+    .weeks { display: flex; gap: 8px; margin-top: 20px; }
+    .weeks button { flex: 1; }
+    .weeks button.sel { background: var(--purple); color: #fff; }
+    .range { text-align: center; margin: 8px 0 2px; }
+    .day { background: var(--card); border-radius: 16px; padding: 12px 16px 14px; margin-top: 10px; }
+    .day.today { background: var(--purple); color: #fff; }
+    .day h3 { margin: 0 0 4px; font-size: 16px; color: var(--purple-dark); }
+    .day.today h3 { color: #fff; }
+    .lesson { padding: 6px 8px; margin: 2px -8px 0; border-radius: 10px; cursor: pointer; }
+    .lesson:hover { background: var(--purple-light); }
+    .day.today .lesson:hover { background: rgba(255,255,255,.15); }
+    .lesson .head { font-weight: 700; }
+    .lesson .head .edit { opacity: .55; font-weight: 400; margin-left: 6px; }
+    .lesson .det { margin-left: 14px; font-size: 13px; color: var(--gray); white-space: pre-line; }
+    .day.today .lesson .det { color: var(--lilac); }
+    .lesson.current .head, .lesson.next .head { color: var(--accent); }
+    .day:not(.today) .lesson.current .head, .day:not(.today) .lesson.next .head { color: var(--purple); }
+    .nohw { margin-left: 14px; font-size: 13px; color: var(--red); }
+    .day.today .nohw { color: #FFCDD2; }
+    .empty { color: var(--gray); }
+    .day.today .empty { color: var(--lilac); }
+    .toggles label { display: flex; gap: 8px; align-items: center; margin-top: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Моё расписание</h1>
+    <div class="muted">Нажмите на урок, чтобы задать или изменить домашнее задание.</div>
+
+    <div class="cards">
+      <div class="card">
+        <h2>BilimClass</h2>
+        <div id="bilimStatus" class="muted"></div>
+        <div id="bilimMsg" class="error small"></div>
+        <div class="row" id="bilimButtons"></div>
+      </div>
+      <div class="card">
+        <h2>Ключ Google Gemini</h2>
+        <div id="geminiView"></div>
+      </div>
+      <div class="card toggles">
+        <h2>Мини-окно и запуск</h2>
+        <label><input type="checkbox" id="onTop"> Мини-окно поверх всех окон</label>
+        <label><input type="checkbox" id="autostart"> Запускать вместе с Windows</label>
+        <div class="row"><button id="showMini">Показать мини-окно</button></div>
+      </div>
+    </div>
+
+    <div class="weeks" id="weeks"></div>
+    <div class="range muted" id="range"></div>
+    <div id="daysBox"></div>
+    <div id="templateNote" class="small muted" style="margin-top:12px"></div>
+  </div>
+  <script src="../shared/logic.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
