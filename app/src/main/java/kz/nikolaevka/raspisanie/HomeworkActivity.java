@@ -39,7 +39,7 @@ import java.util.List;
 
 /**
  * Окно «Домашнее задание» для одного урока:
- * краткая заметка → «Расписать» (Gemini или правила) → правка → файлы → отправка в BilimClass.
+ * краткая заметка → «Расписать» (нейросеть или правила) → правка → файлы → отправка в BilimClass.
  */
 public class HomeworkActivity extends Activity {
 
@@ -163,12 +163,13 @@ public class HomeworkActivity extends Activity {
         expandButton = button("✨ Расписать на русском и английском", PURPLE, Color.WHITE);
         expandButton.setOnClickListener(v -> expand());
         col.addView(expandButton, fullWidth(dp(46), dp(8)));
-        if (Bilim.aiKey(this).isEmpty()) {
-            TextView t = text("Ключ Gemini не указан — текст распишется по простым правилам. "
-                    + "Ключ можно добавить на главном экране приложения.", 12, GRAY, false);
-            t.setPadding(0, dp(4), 0, 0);
-            col.addView(t);
-        }
+        Ai.Provider ai = Bilim.aiProvider(this);
+        TextView aiNote = ai == null
+                ? text("Ключ нейросети не указан — текст распишется по простым правилам. "
+                + "Ключ можно добавить на главном экране приложения.", 12, GRAY, false)
+                : text("Расписывает: " + Ai.label(ai, Bilim.aiModel(this)), 12, GRAY, false);
+        aiNote.setPadding(0, dp(4), 0, 0);
+        col.addView(aiNote);
 
         col.addView(label("Текст для BilimClass (можно исправить)"));
         resultField = edit("Здесь появится готовый текст", 5);
@@ -238,24 +239,26 @@ public class HomeworkActivity extends Activity {
             return;
         }
         final String key = Bilim.aiKey(this);
+        final Ai.Provider ai = Bilim.aiProvider(this);
+        final String model = Bilim.aiModel(this);
         final String classes = lesson.title;
         final String theme = lesson.details.isEmpty() ? "" : lesson.details.get(0).theme;
-        if (key.isEmpty()) {
+        if (ai == null) {
             resultField.setText(HomeworkRules.expand(note));
             status("Расписано по правилам (без ИИ). Проверьте текст.", GRAY);
             return;
         }
-        setBusy(true, "Gemini расписывает задание…");
+        setBusy(true, ai.name + " расписывает задание…");
         new Thread(() -> {
             String text;
             String msg;
             int color = GRAY;
             try {
-                text = Gemini.expand(key, note, classes, theme);
-                msg = "Готово. Проверьте текст перед отправкой.";
+                text = Ai.expand(ai, key, model, note, classes, theme);
+                msg = "Готово (" + ai.name + "). Проверьте текст перед отправкой.";
             } catch (IOException e) {
                 text = HomeworkRules.expand(note);
-                msg = Gemini.explain(e);
+                msg = Ai.explain(e, ai);
                 color = RED;
             }
             final String t = text;

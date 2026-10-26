@@ -1,6 +1,6 @@
 'use strict';
 // Настройки и данные программы в папке пользователя (%APPDATA%\Моё расписание).
-// Пропуск BilimClass и ключ Gemini шифруются средствами Windows (safeStorage).
+// Пропуск BilimClass и ключ нейросети шифруются средствами Windows (safeStorage).
 const { app, safeStorage } = require('electron');
 const fs = require('fs');
 const path = require('path');

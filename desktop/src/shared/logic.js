@@ -395,6 +395,6 @@
   return {
     DAY_NAMES, MONTHS, isoDate, parseIso, addDays, dow, mondayOf, dateText, toMin, range, eduYear,
     templateDay, makeSource, compactClass, parseWeek, parseWeeks, homeworkSummary, computeState, formatLeft,
-    expandRules, GEMINI_MODELS, geminiRequest, geminiParse, nextReminder, reminderText, REMIND_BEFORE_MIN,
+    expandRules, GEMINI_MODELS, GEMINI_SYSTEM, geminiRequest, geminiParse, nextReminder, reminderText, REMIND_BEFORE_MIN,
   };
 });

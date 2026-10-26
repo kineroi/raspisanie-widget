@@ -16,6 +16,11 @@ import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebStorage;
 import android.text.InputType;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -30,6 +35,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
+import java.io.IOException;
 import java.util.List;
 
 /** Экран приложения: уроки на неделю с темами и домашкой, подключение BilimClass. */
@@ -271,7 +277,7 @@ public class MainActivity extends Activity {
             glp.topMargin = dp(10);
             col.addView(grades, glp);
         }
-        col.addView(geminiCard());
+        col.addView(aiCard());
         col.addView(remindersCard());
 
         // Переключатель недель
@@ -421,72 +427,108 @@ public class MainActivity extends Activity {
     }
 
     private boolean editingKey = false;
+    private boolean checkingKey = false;
     private String pendingKey = "";
+    private String pendingBase = "";
+    private String aiMsg = "";
 
-    private View geminiCard() {
+    private View aiCard() {
         LinearLayout card = card(Color.WHITE);
         String key = Bilim.aiKey(this);
-        if (!key.isEmpty() && !editingKey) {
+        Ai.Provider ai = Bilim.aiProvider(this);
+        if (ai != null && !editingKey) {
             String tail = key.length() > 4 ? key.substring(key.length() - 4) : key;
-            card.addView(text("Gemini подключён (ключ …" + tail + "). Нажмите на урок, чтобы задать домашку.",
-                    14, GRAY, false));
+            card.addView(text("● Подключено: " + ai.name, 15, 0xFF2E7D32, true));
+            card.addView(text("Ключ …" + tail + (Ai.CUSTOM.equals(ai.id) ? " · " + ai.base : "")
+                    + ". Нажмите на урок, чтобы задать домашку.", 13, GRAY, false));
+            List<String> models = Bilim.aiModels(this);
+            String current = Bilim.aiModel(this);
+            if (!current.isEmpty() && !models.contains(current)) models.add(0, current);
+            if (!models.isEmpty()) {
+                card.addView(text("Модель:", 13, GRAY, false));
+                Spinner spinner = new Spinner(this);
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, models);
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                spinner.setAdapter(adapter);
+                spinner.setSelection(Math.max(0, models.indexOf(current)), false);
+                spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+                        String m = models.get(pos);
+                        if (!m.equals(Bilim.aiModel(MainActivity.this))) Bilim.setAiModel(MainActivity.this, m);
+                    }
+
+                    @Override
+                    public void onNothingSelected(AdapterView<?> parent) {
+                    }
+                });
+                card.addView(spinner);
+            }
+            if (!aiMsg.isEmpty()) card.addView(text(aiMsg, 13, 0xFFC62828, false));
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
             Button change = button("Изменить ключ", Color.WHITE, PURPLE_DARK);
             change.setOnClickListener(v -> {
                 editingKey = true;
+                aiMsg = "";
+                pendingBase = Bilim.aiBase(this);
                 render();
             });
+            row.addView(change, new LinearLayout.LayoutParams(0, dp(44), 1f));
+            Button refresh = button(checkingKey ? "Обновляю…" : "Обновить модели", Color.WHITE, PURPLE_DARK);
+            refresh.setEnabled(!checkingKey);
+            refresh.setOnClickListener(v -> refreshModels(ai, key));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, dp(44), 1f);
+            rp.leftMargin = dp(8);
+            row.addView(refresh, rp);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(40));
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.topMargin = dp(6);
-            card.addView(change, lp);
+            card.addView(row, lp);
             return card;
         }
-        card.addView(text("Ключ Google Gemini", 15, PURPLE_DARK, true));
-        card.addView(text("Нужен, чтобы ИИ расписывал домашку на русском и английском. "
-                + "Получить бесплатно: aistudio.google.com → Get API key → Create API key. "
+        card.addView(text("Нейросеть (ключ API)", 15, PURPLE_DARK, true));
+        card.addView(text("Нужен, чтобы ИИ расписывал домашку на русском и английском. Подходят ключи "
+                + "Google Gemini, Claude, Groq, OpenRouter, OpenAI, DeepSeek, Mistral, AnyModel — сервис "
+                + "определится сам. Бесплатный ключ: aistudio.google.com → Get API key. "
                 + "Ключ хранится только на этом телефоне.", 13, GRAY, false));
         final EditText field = new EditText(this);
-        field.setHint("Вставьте ключ (AIza…)");
+        field.setHint("Вставьте ключ (AIza…, sk-…, gsk_…)");
         field.setSingleLine(true);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         field.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         field.setText(pendingKey);
-        field.addTextChangedListener(new android.text.TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int a, int b, int c) {
-                pendingKey = s.toString();
-            }
-
-            @Override
-            public void afterTextChanged(android.text.Editable e) {
-            }
-        });
+        field.addTextChangedListener(watcher(t -> pendingKey = t));
         card.addView(field);
+        final EditText baseField = new EditText(this);
+        baseField.setHint("Адрес сервиса (необязательно)");
+        baseField.setSingleLine(true);
+        baseField.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        baseField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        baseField.setText(pendingBase);
+        baseField.addTextChangedListener(watcher(t -> pendingBase = t));
+        card.addView(baseField);
+        if (checkingKey) card.addView(text("Проверяю ключ…", 13, GRAY, false));
+        else if (!aiMsg.isEmpty()) card.addView(text(aiMsg, 13, 0xFFC62828, false));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        Button save = button("Сохранить ключ", PURPLE, Color.WHITE);
+        Button save = button("Проверить и сохранить", PURPLE, Color.WHITE);
+        save.setEnabled(!checkingKey);
         save.setOnClickListener(v -> {
             String k = field.getText().toString().trim();
             if (k.isEmpty()) {
                 field.setError("Вставьте ключ");
                 return;
             }
-            Bilim.setAiKey(this, k);
-            pendingKey = "";
-            editingKey = false;
-            Toast.makeText(this, "Ключ сохранён", Toast.LENGTH_SHORT).show();
-            render();
+            checkKey(k, baseField.getText().toString().trim());
         });
         row.addView(save, new LinearLayout.LayoutParams(0, dp(44), 1f));
         if (!key.isEmpty()) {
             Button remove = button("Удалить ключ", Color.WHITE, 0xFFC62828);
             remove.setOnClickListener(v -> {
-                Bilim.setAiKey(this, "");
+                Bilim.clearAi(this);
                 editingKey = false;
+                aiMsg = "";
                 render();
             });
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, dp(44), 1f);
@@ -498,6 +540,81 @@ public class MainActivity extends Activity {
         lp.topMargin = dp(6);
         card.addView(row, lp);
         return card;
+    }
+
+    private interface OnText {
+        void changed(String text);
+    }
+
+    private TextWatcher watcher(OnText cb) {
+        return new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int a, int b, int c) {
+                cb.changed(s.toString());
+            }
+
+            @Override
+            public void afterTextChanged(Editable e) {
+            }
+        };
+    }
+
+    /** Проверить ключ: какой сервис его принимает и какие модели доступны. */
+    private void checkKey(String key, String base) {
+        checkingKey = true;
+        aiMsg = "";
+        render();
+        new Thread(() -> {
+            Ai.Detected d = null;
+            String err = "";
+            try {
+                d = Ai.detect(key, base);
+            } catch (IOException e) {
+                err = Ai.explainDetect(e);
+            }
+            final Ai.Detected found = d;
+            final String msg = err;
+            runOnUiThread(() -> {
+                checkingKey = false;
+                if (found != null) {
+                    Bilim.setAi(this, key, found);
+                    pendingKey = "";
+                    pendingBase = "";
+                    editingKey = false;
+                    Toast.makeText(this, "Подключено: " + found.name, Toast.LENGTH_SHORT).show();
+                } else {
+                    aiMsg = msg;
+                }
+                render();
+            });
+        }).start();
+    }
+
+    private void refreshModels(Ai.Provider ai, String key) {
+        checkingKey = true;
+        aiMsg = "";
+        render();
+        new Thread(() -> {
+            List<String> models = null;
+            String err = "";
+            try {
+                models = Ai.listModels(ai, key);
+            } catch (IOException e) {
+                err = Ai.explainDetect(e);
+            }
+            final List<String> found = models;
+            final String msg = err;
+            runOnUiThread(() -> {
+                checkingKey = false;
+                if (found != null) Bilim.setAiModels(this, ai.id, found);
+                else aiMsg = msg;
+                render();
+            });
+        }).start();
     }
 
     private View dayCard(LocalDate d, Schedule.Day day, WidgetState now) {
