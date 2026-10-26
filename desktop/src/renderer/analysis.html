@@ -5,31 +5,32 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
   <title>Справка СОР/СОЧ</title>
   <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
   <style>
-    body { background: var(--purple-light); }
-    .page { max-width: 1000px; margin: 0 auto; padding: 20px 20px 40px; }
-    h1 { color: var(--purple-dark); font-size: 24px; margin: 0; }
+    .page { max-width: 1060px; margin: 0 auto; padding: 24px 32px 40px; }
+    h1 { color: var(--text); font-size: 24px; font-weight: 400; margin: 0; }
     .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
-    .card { background: #fff; border-radius: 16px; padding: 14px 16px; margin-top: 12px; }
-    .card h2 { margin: 0 0 8px; font-size: 17px; color: var(--purple-dark); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .card { background: var(--surface); border-radius: 8px; padding: 18px 20px; margin-top: 16px; }
+    .card h2 { margin: 0 0 8px; font-size: 18px; font-weight: 500; color: var(--text); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
     .card h2 .muted { font-size: 13px; font-weight: 400; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
     @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
-    .label { font-size: 12px; color: var(--gray); margin: 8px 0 3px; }
+    .label { font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: center; color: var(--gray); font-weight: 600; padding: 5px 6px; border-bottom: 1px solid #eee; }
-    td { text-align: center; padding: 5px 6px; border-bottom: 1px solid #f3eef6; font-variant-numeric: tabular-nums; }
+    th { text-align: center; color: var(--muted); font-weight: 500; padding: 7px 6px; border-bottom: 1px solid var(--border); }
+    td { text-align: center; padding: 6px 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
     td:first-child, th:first-child { text-align: left; }
-    .work { border: 1px solid var(--lilac); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
-    .work h3 { margin: 0; font-size: 15px; color: var(--purple-dark); }
-    .files { font-size: 12px; color: var(--gray); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
-    .chip { background: var(--purple-light); border-radius: 10px; padding: 2px 4px 2px 10px; display: inline-flex; gap: 4px; align-items: center; }
+    .work { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-top: 12px; }
+    .work h3 { margin: 0; font-size: 15px; font-weight: 500; color: var(--text); }
+    .files { font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+    .chip { background: var(--primary-soft); color: var(--text); border-radius: 6px; padding: 2px 4px 2px 10px; display: inline-flex; gap: 4px; align-items: center; }
     .chip button { border: none; background: none; padding: 0 6px; color: var(--red); font-size: 14px; line-height: 1; }
-    #back { margin-bottom: 8px; }
-    .ok { color: #2E7D32; }
+    #back { margin-bottom: 10px; }
+    .ok { color: var(--green); }
     .saved { margin-top: 8px; font-size: 13px; }
     .saved a { margin-left: 8px; }
-    details summary { cursor: pointer; color: var(--purple-dark); font-weight: 600; }
+    details summary { cursor: pointer; color: var(--text); font-weight: 500; }
     select { margin-left: 0; }
   </style>
 </head>

@@ -55,6 +55,11 @@ function aiConfig() {
   };
 }
 
+/** Цвет окна до загрузки страницы — под тему Windows, чтобы не мигало. */
+function windowBackground() {
+  return nativeTheme.shouldUseDarkColors ? '#121212' : '#FFFFFF';
+}
+
 function snapshot() {
   const cfg = aiConfig();
   const key = cfg.key;
@@ -188,8 +193,7 @@ function showMain() {
     minWidth: 620,
     minHeight: 500,
     title: 'Моё расписание',
-    // цвет до загрузки страницы — под тему Windows, чтобы не мигало
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#121212' : '#FFFFFF',
+    backgroundColor: windowBackground(),
     icon: path.join(ASSETS, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: webPrefs(),
@@ -217,7 +221,7 @@ function openHomework(date, start) {
     minWidth: 480,
     minHeight: 500,
     title: 'Домашнее задание',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: windowBackground(),
     icon: path.join(ASSETS, 'icon.png'),
     alwaysOnTop: true, // чтобы мини-окно его не закрывало
     autoHideMenuBar: true,
@@ -244,7 +248,7 @@ function openAnalysis() {
     minWidth: 680,
     minHeight: 500,
     title: 'Справка СОР/СОЧ',
-    backgroundColor: '#F3E5F5',
+    backgroundColor: windowBackground(),
     icon: path.join(ASSETS, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: webPrefs(),
@@ -268,7 +272,7 @@ function openGrades() {
     minWidth: 640,
     minHeight: 480,
     title: 'Успеваемость',
-    backgroundColor: '#F3E5F5',
+    backgroundColor: windowBackground(),
     icon: path.join(ASSETS, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: webPrefs(),

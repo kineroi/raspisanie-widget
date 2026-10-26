@@ -45,13 +45,12 @@ function render() {
     const row = document.createElement('div');
     const kind = s.rows[i];
     row.className = `lesson ${kind}`;
-    const mark = kind === 'current' ? '▶ ' : kind === 'past' ? '✓ ' : '';
     const t = document.createElement('span');
     t.className = 't';
     t.textContent = L.range(l);
     const n = document.createElement('span');
     n.className = 'n';
-    n.textContent = mark + l.title;
+    n.textContent = l.title;
     row.title = [l.title, L.homeworkSummary(l) || ''].filter(Boolean).join('\n');
     row.append(t, n);
     row.addEventListener('click', () => window.api.openHomework(s.listDate, l.start));
