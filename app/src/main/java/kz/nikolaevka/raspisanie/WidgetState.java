@@ -32,6 +32,8 @@ final class WidgetState {
     String subText;
     String listTitle;
     List<Schedule.Lesson> lessons;
+    /** К какой дате относится список уроков (сегодня или ближайший учебный день). */
+    LocalDate listDate;
     Row[] rows;
     /** Когда виджет нужно обновить в следующий раз. */
     LocalDateTime nextUpdate;
@@ -81,9 +83,11 @@ final class WidgetState {
                 s.listTitle = DAY_NAMES[next.getDayOfWeek().getValue() - 1] + ", " + dateText(next)
                         + " · уроков: " + countLessons(nl);
                 s.lessons = nl;
+                s.listDate = next;
                 s.rows = fill(nl.size(), Row.NORMAL);
             } else {
                 s.lessons = today;
+                s.listDate = date;
                 s.rows = new Row[0];
                 s.listTitle = "";
             }
@@ -92,6 +96,7 @@ final class WidgetState {
         }
 
         s.lessons = today;
+        s.listDate = date;
         s.rows = fill(today.size(), Row.NORMAL);
         s.listTitle = "Мои уроки сегодня · " + countLessons(today);
 

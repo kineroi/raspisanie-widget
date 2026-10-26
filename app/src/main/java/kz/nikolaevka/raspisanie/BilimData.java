@@ -32,6 +32,8 @@ final class BilimData {
         String theme;
         String homework;
         String cabinet;
+        String scheduleUuid;
+        List<Schedule.FileRef> files;
     }
 
     /** Разобрать ответ за одну неделю: дата → день. */
@@ -100,6 +102,18 @@ final class BilimData {
         JSONObject hw = l.optJSONObject("homework");
         String body = hw == null ? "" : clean(str(hw, "body"));
         it.homework = NO_HOMEWORK.equalsIgnoreCase(body) ? "" : body;
+        it.files = new ArrayList<>();
+        JSONArray files = hw == null ? null : hw.optJSONArray("files");
+        if (files != null) {
+            for (int i = 0; i < files.length(); i++) {
+                JSONObject f = files.optJSONObject(i);
+                if (f == null) continue;
+                String name = str(f, "name") + (f.isNull("extension") ? "" : f.optString("extension", ""));
+                it.files.add(new Schedule.FileRef(f.optLong("id", 0), name, str(f, "link")));
+            }
+        }
+        it.scheduleUuid = str(l, "scheduleUuid");
+        if (it.scheduleUuid.isEmpty()) it.scheduleUuid = str(l, "scheduleId");
         JSONObject cab = l.optJSONObject("cabinet");
         it.cabinet = cab == null ? "" : str(cab, "number");
         return it;
@@ -154,7 +168,7 @@ final class BilimData {
 
         List<Schedule.Detail> details = new ArrayList<>();
         for (Item it : group) {
-            details.add(new Schedule.Detail(it.cls, it.theme, it.homework));
+            details.add(new Schedule.Detail(it.cls, it.theme, it.homework, it.scheduleUuid, it.files));
         }
         return new Schedule.Lesson(first.start, first.end, title.toString(), details);
     }

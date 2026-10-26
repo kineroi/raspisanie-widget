@@ -146,6 +146,14 @@ public class ScheduleWidget extends AppWidgetProvider {
             v.setTextColor(TIME_IDS[i], color);
             v.setTextColor(NAME_IDS[i], color);
             v.setInt(ROW_IDS[i], "setBackgroundResource", bg);
+
+            // Нажатие на урок — окно «Домашнее задание» для этого урока
+            Intent hw = new Intent(context, HomeworkActivity.class)
+                    .putExtra(HomeworkActivity.EXTRA_DATE, s.listDate.toString())
+                    .putExtra(HomeworkActivity.EXTRA_START, l.start.toString())
+                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            v.setOnClickPendingIntent(ROW_IDS[i], PendingIntent.getActivity(context, 100 + i, hw,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         }
 
         Intent open = new Intent(context, MainActivity.class);

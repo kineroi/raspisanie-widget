@@ -17,16 +17,38 @@ import java.util.Map;
  */
 final class Schedule {
 
+    /** Файл, прикреплённый к домашке в BilimClass. */
+    static final class FileRef {
+        final long id;
+        final String name;
+        final String link;
+
+        FileRef(long id, String name, String link) {
+            this.id = id;
+            this.name = name;
+            this.link = link;
+        }
+    }
+
     /** Тема и домашнее задание одного класса на уроке. */
     static final class Detail {
         final String cls;
         final String theme;
         final String homework;
+        /** Идентификатор урока в BilimClass (нужен для отправки домашки), "" если нет. */
+        final String scheduleUuid;
+        final List<FileRef> files;
 
         Detail(String cls, String theme, String homework) {
+            this(cls, theme, homework, "", Collections.<FileRef>emptyList());
+        }
+
+        Detail(String cls, String theme, String homework, String scheduleUuid, List<FileRef> files) {
             this.cls = cls;
             this.theme = theme == null ? "" : theme;
             this.homework = homework == null ? "" : homework;
+            this.scheduleUuid = scheduleUuid == null ? "" : scheduleUuid;
+            this.files = files == null ? Collections.<FileRef>emptyList() : files;
         }
     }
 

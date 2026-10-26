@@ -141,6 +141,58 @@ final class Bilim {
         }
     }
 
+    // ---------- Ключ Gemini (хранится только на телефоне) ----------
+
+    private static final String K_AI_KEY = "ai_key";
+
+    static String aiKey(Context c) {
+        return prefs(c).getString(K_AI_KEY, "");
+    }
+
+    static void setAiKey(Context c, String key) {
+        prefs(c).edit().putString(K_AI_KEY, key == null ? "" : key.trim()).apply();
+    }
+
+    // ---------- Домашнее задание ----------
+
+    /** Действие, которому нужен действующий пропуск. */
+    interface Call {
+        void run(String token, String schoolId) throws IOException;
+    }
+
+    /**
+     * Выполнить запрос к BilimClass с действующим пропуском; при устаревшем пропуске —
+     * продлить и повторить один раз. Вызывать НЕ из главного потока.
+     */
+    static void withToken(Context context, Call call) throws IOException {
+        Context c = context.getApplicationContext();
+        synchronized (LOCK) {
+            SharedPreferences p = prefs(c);
+            String refresh = p.getString(K_REFRESH, "");
+            String school = p.getString(K_SCHOOL, "");
+            if (refresh.isEmpty() || school.isEmpty()) throw new BilimApi.HttpError(401);
+            String token = p.getString(K_TOKEN, "");
+            long left = BilimApi.secondsLeft(token, System.currentTimeMillis() / 1000);
+            if (token.isEmpty() || (left >= 0 && left < 300)) token = renewOrFlag(c, token, refresh);
+            try {
+                call.run(token, school);
+            } catch (BilimApi.HttpError e) {
+                if (!e.isAuth()) throw e;
+                token = renewOrFlag(c, token, p.getString(K_REFRESH, refresh));
+                call.run(token, school);
+            }
+        }
+    }
+
+    private static String renewOrFlag(Context c, String token, String refresh) throws IOException {
+        try {
+            return renew(c, token, refresh);
+        } catch (BilimApi.HttpError e) {
+            if (e.isAuth()) prefs(c).edit().putBoolean(K_NEED_LOGIN, true).apply();
+            throw e;
+        }
+    }
+
     private static String renew(Context c, String token, String refresh) throws IOException {
         BilimApi.Tokens t = BilimApi.refresh(token, refresh);
         prefs(c).edit().putString(K_TOKEN, t.access).putString(K_REFRESH, t.refresh).apply();
