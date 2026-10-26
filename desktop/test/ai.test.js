@@ -10,13 +10,17 @@ test('Нейросеть: сервис по началу ключа', () => {
   assert.deepEqual(A.candidates('sk-or-v1-XXXX'), ['openrouter']);
   assert.deepEqual(A.candidates('sk-proj-XXXX'), ['openai']);
   assert.deepEqual(A.candidates(' sk-dc9dXXXX '), ['anymodel', 'openai', 'deepseek']);
-  assert.deepEqual(A.candidates('abcdef123456'), ['mistral']);
+  assert.deepEqual(A.candidates('abcdef123456'), ['gemini', 'mistral']);
 });
 
 test('Нейросеть: свой адрес и старый ключ без записанного сервиса', () => {
   assert.equal(A.normalizeBase('anymodel.org/v1/'), 'https://anymodel.org/v1');
   assert.equal(A.normalizeBase('https://x.example/v1/chat/completions'), 'https://x.example/v1');
   assert.equal(A.normalizeBase('http://x.example/v1'), 'https://x.example/v1');
+  assert.equal(A.isValidBase('anymodel.org/v1'), true);
+  assert.equal(A.isValidBase('https://llm.example.com:8443/v1'), true);
+  assert.equal(A.isValidBase('Gemini API Key'), false);
+  assert.equal(A.isValidBase('AIzaSyXXXX'), false);
   const custom = A.provider('custom', 'https://llm.example.com/v1/');
   assert.deepEqual(custom, { id: 'custom', name: 'llm.example.com', kind: 'openai', base: 'https://llm.example.com/v1' });
   assert.equal(A.resolve({ key: 'AIzaOLD' }).id, 'gemini');

@@ -500,8 +500,9 @@ public class MainActivity extends Activity {
         field.setText(pendingKey);
         field.addTextChangedListener(watcher(t -> pendingKey = t));
         card.addView(field);
+        card.addView(text("Адрес сервиса — только если вашего сервиса нет в списке. Обычно оставьте пустым:", 12, GRAY, false));
         final EditText baseField = new EditText(this);
-        baseField.setHint("Адрес сервиса (необязательно)");
+        baseField.setHint("https://…/v1 (необязательно)");
         baseField.setSingleLine(true);
         baseField.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         baseField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
