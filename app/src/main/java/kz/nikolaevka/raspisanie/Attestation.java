@@ -267,7 +267,7 @@ final class Attestation {
     }
 
     private static final Pattern SCRIPT_URL =
-            Pattern.compile("^https://script\\.google\\.com/(a/[^/\\s]+/)?macros/s/[\\w-]+/exec$");
+            Pattern.compile("^https://script\\.google\\.com/(a/macros/[^/\\s]+|macros)/s/[\\w-]+/exec$");
 
     /** Ссылка веб-приложения из «Развернуть»: https://script.google.com/macros/s/…/exec. */
     static boolean isScriptUrl(String url) {
