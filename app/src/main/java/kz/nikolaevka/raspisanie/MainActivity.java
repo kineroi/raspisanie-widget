@@ -885,10 +885,10 @@ public class MainActivity extends Activity {
             return card;
         }
         card.addView(text("Нужен, чтобы ИИ расписывал домашку на русском и английском. Подходят ключи "
-                + "Google Gemini, Claude, Groq, OpenRouter, OpenAI, DeepSeek, Mistral, AnyModel — сервис "
+                + "Google Gemini, Claude, Groq, xAI Grok, OpenRouter, OpenAI, DeepSeek, Mistral, AnyModel — сервис "
                 + "определится сам. Бесплатный ключ: aistudio.google.com → Get API key. "
                 + "Ключ хранится только на этом телефоне.", 13, c(R.color.a_muted), 400));
-        final EditText field = field("Вставьте ключ (AIza…, sk-…, gsk_…)", 15);
+        final EditText field = field("Вставьте ключ (AIza…, sk-…, gsk_…, xai-…)", 15);
         field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         field.setText(pendingKey);
         field.addTextChangedListener(watcher(t -> pendingKey = t));

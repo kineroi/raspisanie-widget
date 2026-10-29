@@ -7,6 +7,13 @@ test('Нейросеть: сервис по началу ключа', () => {
   assert.deepEqual(A.candidates('AIzaSyXXXX'), ['gemini']);
   assert.deepEqual(A.candidates('sk-ant-api03-XXXX'), ['anthropic']);
   assert.deepEqual(A.candidates('gsk_XXXX'), ['groq']);
+  assert.deepEqual(A.candidates('xai-TXXXX'), ['xai']);
+  assert.equal(A.resolve({ key: 'xai-TXXXX' }).base, 'https://api.x.ai/v1');
+  // у Grok — быстрая модель, но не для кода и не картинки
+  const grok = A.parseModels(A.provider('xai'), { data: [{ id: 'grok-4' }, { id: 'grok-code-fast-1' }, { id: 'grok-4-fast' }, { id: 'grok-2-image-1212' }] });
+  assert.deepEqual(grok, ['grok-4', 'grok-4-fast', 'grok-code-fast-1']);
+  assert.equal(A.defaultModel(grok), 'grok-4-fast');
+  assert.equal(A.defaultModel(['grok-3', 'grok-3-mini']), 'grok-3-mini');
   assert.deepEqual(A.candidates('sk-or-v1-XXXX'), ['openrouter']);
   assert.deepEqual(A.candidates('sk-proj-XXXX'), ['openai']);
   assert.deepEqual(A.candidates(' sk-dc9dXXXX '), ['anymodel', 'openai', 'deepseek']);
