@@ -39,6 +39,8 @@ final class WidgetState {
     String countdownLabel;
     /** Начало отрезка для полосы прогресса (конец — countdownTo), или null — полосы нет. */
     LocalDateTime progressFrom;
+    /** Строка под карточкой в компактном виджете: что будет после урока из карточки. */
+    String nextText;
     String subText;
     String listTitle;
     List<Schedule.Lesson> lessons;
@@ -103,6 +105,7 @@ final class WidgetState {
             }
             s.heroLabel = "Сегодня";
             s.heroTitle = s.status;
+            s.nextText = s.subText;
             s.nextUpdate = midnight;
             return s;
         }
@@ -168,6 +171,18 @@ final class WidgetState {
             if (nd != null) {
                 List<Schedule.Lesson> nl = source.day(nd).lessons;
                 s.subText = whenText(date, nd) + ": с " + hm(nl.get(0).start) + " · " + nl.get(0).title;
+            }
+            s.nextText = s.subText;
+        }
+        if (current >= 0 || next >= 0) {
+            // в карточке текущий урок — показываем следующий; в карточке следующий — тот, что после него
+            int shown = current >= 0 ? current : next;
+            String word = current >= 0 ? "Далее" : "Потом";
+            if (shown + 1 < today.size()) {
+                Schedule.Lesson f = today.get(shown + 1);
+                s.nextText = word + ": " + f.title + " · " + hm(f.start);
+            } else {
+                s.nextText = "Это последний урок сегодня";
             }
         }
 

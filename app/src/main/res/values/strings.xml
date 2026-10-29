@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">Моё расписание</string>
     <string name="widget_name">Расписание уроков</string>
-    <string name="widget_desc">Часы, текущий урок и все уроки на сегодня</string>
+    <string name="widget_desc">Часы, текущий урок и все уроки на сегодня. Сожмите до 2×2 — останутся текущий и следующий урок</string>
 </resources>
