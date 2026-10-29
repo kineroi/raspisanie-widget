@@ -6,17 +6,12 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
-import android.text.InputType;
 import android.util.DisplayMetrics;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -50,10 +45,9 @@ public class HomeworkActivity extends Activity {
     private static final int REQ_CAMERA = 2;
     private static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
 
-    private static final int PURPLE_DARK = 0xFF4A148C;
-    private static final int PURPLE = 0xFF7B1FA2;
-    private static final int GRAY = 0xFF555555;
-    private static final int RED = 0xFFC62828;
+    /** Цвета текущей темы (светлая/тёмная), берутся при создании окна. */
+    private int muted;
+    private int red;
 
     private LocalDate date;
     private Schedule.Lesson lesson;
@@ -77,6 +71,8 @@ public class HomeworkActivity extends Activity {
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         DisplayMetrics dm = getResources().getDisplayMetrics();
         getWindow().setLayout((int) (dm.widthPixels * 0.95), (int) (dm.heightPixels * 0.9));
+        muted = Ui.c(this, R.color.a_muted);
+        red = Ui.c(this, R.color.a_red);
 
         if (savedInstanceState != null) {
             String cam = savedInstanceState.getString("camera");
@@ -116,21 +112,20 @@ public class HomeworkActivity extends Activity {
 
     private void buildUi(Bundle saved) {
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(Color.WHITE);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(18), dp(16), dp(18), dp(16));
+        col.setPadding(dp(20), dp(18), dp(20), dp(18));
         scroll.addView(col);
 
-        col.addView(text("Домашнее задание", 20, PURPLE_DARK, true));
+        col.addView(text("Домашнее задание", 22, Ui.c(this, R.color.a_text), 500));
         String head = WidgetState.DAY_NAMES[date.getDayOfWeek().getValue() - 1] + ", "
                 + WidgetState.dateText(date) + " · " + WidgetState.range(lesson) + "\n" + lesson.title;
-        TextView h = text(head, 14, GRAY, false);
+        TextView h = text(head, 14, muted, 400);
         h.setPadding(0, dp(4), 0, dp(4));
         col.addView(h);
         for (Schedule.Detail d : lesson.details) {
             if (d.theme.isEmpty()) continue;
-            col.addView(text((lesson.details.size() > 1 ? d.cls + ": " : "Тема: ") + d.theme, 13, GRAY, false));
+            col.addView(text((lesson.details.size() > 1 ? d.cls + ": " : "Тема: ") + d.theme, 13, muted, 400));
         }
 
         boolean canSend = Bilim.isConnected(this) && !targets.isEmpty();
@@ -138,7 +133,7 @@ public class HomeworkActivity extends Activity {
             TextView warn = text(Bilim.isConnected(this)
                     ? "Этого урока нет в BilimClass — отправить не получится."
                     : "BilimClass не подключён — текст можно расписать, но отправить не получится. "
-                    + "Подключите BilimClass в приложении.", 13, RED, false);
+                    + "Подключите BilimClass в приложении.", 13, red, 400);
             warn.setPadding(0, dp(8), 0, 0);
             col.addView(warn);
         }
@@ -147,32 +142,29 @@ public class HomeworkActivity extends Activity {
         if (targets.size() > 1) {
             col.addView(label("Кому задать"));
             for (Schedule.Detail d : targets) {
-                CheckBox cb = new CheckBox(this);
-                cb.setText(d.cls);
-                cb.setChecked(true);
-                cb.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+                CheckBox cb = Ui.checkBox(this, d.cls, true);
                 classBoxes.add(cb);
                 col.addView(cb);
             }
         }
 
         col.addView(label("Кратко, что задать"));
-        noteField = edit("Например: стр 45 упр 3 письм, сл выуч", 2);
+        noteField = Ui.box(this, "Например: стр 45 упр 3 письм, сл выуч", 2);
         col.addView(noteField);
 
-        expandButton = button("✨ Расписать на русском и английском", PURPLE, Color.WHITE);
+        expandButton = Ui.button(this, "✨ Расписать на русском и английском", true);
         expandButton.setOnClickListener(v -> expand());
-        col.addView(expandButton, fullWidth(dp(46), dp(8)));
+        col.addView(expandButton, fullWidth(dp(46), dp(10)));
         Ai.Provider ai = Bilim.aiProvider(this);
         TextView aiNote = ai == null
                 ? text("Ключ нейросети не указан — текст распишется по простым правилам. "
-                + "Ключ можно добавить на главном экране приложения.", 12, GRAY, false)
-                : text("Расписывает: " + Ai.label(ai, Bilim.aiModel(this)), 12, GRAY, false);
+                + "Ключ можно добавить в настройках приложения.", 12, muted, 400)
+                : text("Расписывает: " + Ai.label(ai, Bilim.aiModel(this)), 12, muted, 400);
         aiNote.setPadding(0, dp(4), 0, 0);
         col.addView(aiNote);
 
         col.addView(label("Текст для BilimClass (можно исправить)"));
-        resultField = edit("Здесь появится готовый текст", 5);
+        resultField = Ui.box(this, "Здесь появится готовый текст", 5);
         if (saved == null) resultField.setText(currentHomework());
         col.addView(resultField);
 
@@ -189,11 +181,11 @@ public class HomeworkActivity extends Activity {
 
         LinearLayout fileButtons = new LinearLayout(this);
         fileButtons.setOrientation(LinearLayout.HORIZONTAL);
-        Button pick = button("📎 Фото или документ", Color.WHITE, PURPLE_DARK);
+        Button pick = Ui.button(this, "📎 Фото или документ", false);
         pick.setOnClickListener(v -> pickFiles());
         fileButtons.addView(pick, new LinearLayout.LayoutParams(0, dp(44), 1f));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            Button cam = button("📷 Сфотографировать", Color.WHITE, PURPLE_DARK);
+            Button cam = Ui.button(this, "📷 Сфотографировать", false);
             cam.setOnClickListener(v -> takePhoto());
             LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(44), 1f);
             cp.leftMargin = dp(8);
@@ -201,16 +193,16 @@ public class HomeworkActivity extends Activity {
         }
         col.addView(fileButtons, fullWidth(ViewGroup.LayoutParams.WRAP_CONTENT, dp(6)));
 
-        statusView = text("", 13, GRAY, false);
+        statusView = text("", 13, muted, 400);
         statusView.setPadding(0, dp(10), 0, 0);
         col.addView(statusView);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button cancel = button("Закрыть", Color.WHITE, PURPLE_DARK);
+        Button cancel = Ui.button(this, "Закрыть", false);
         cancel.setOnClickListener(v -> finish());
         actions.addView(cancel, new LinearLayout.LayoutParams(0, dp(48), 1f));
-        sendButton = button("Отправить в BilimClass", PURPLE, Color.WHITE);
+        sendButton = Ui.button(this, "Отправить в BilimClass", true);
         sendButton.setEnabled(canSend);
         if (!canSend) sendButton.setAlpha(0.4f);
         sendButton.setOnClickListener(v -> confirmSend());
@@ -245,21 +237,21 @@ public class HomeworkActivity extends Activity {
         final String theme = lesson.details.isEmpty() ? "" : lesson.details.get(0).theme;
         if (ai == null) {
             resultField.setText(HomeworkRules.expand(note));
-            status("Расписано по правилам (без ИИ). Проверьте текст.", GRAY);
+            status("Расписано по правилам (без ИИ). Проверьте текст.", muted);
             return;
         }
         setBusy(true, ai.name + " расписывает задание…");
         new Thread(() -> {
             String text;
             String msg;
-            int color = GRAY;
+            int color = muted;
             try {
                 text = Ai.expand(ai, key, model, note, classes, theme);
                 msg = "Готово (" + ai.name + "). Проверьте текст перед отправкой.";
             } catch (IOException e) {
                 text = HomeworkRules.expand(note);
                 msg = Ai.explain(e, ai);
-                color = RED;
+                color = red;
             }
             final String t = text;
             final String m = msg;
@@ -361,9 +353,10 @@ public class HomeworkActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView t = text(name, 13, 0xFF333333, false);
+        TextView t = text(name, 13, Ui.c(this, R.color.a_text), 400);
         row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        Button b = button(action, Color.WHITE, RED);
+        Button b = Ui.button(this, action, false);
+        b.setTextColor(red);
         b.setOnClickListener(onAction);
         row.addView(b, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(36)));
         row.setPadding(0, dp(3), 0, dp(3));
@@ -396,7 +389,7 @@ public class HomeworkActivity extends Activity {
             final boolean success = ok;
             runOnUiThread(() -> {
                 setBusy(false, null);
-                status(m, success ? GRAY : RED);
+                status(m, success ? muted : red);
                 if (success) {
                     // убрать файл из списка
                     for (Schedule.Detail d : targets) d.files.remove(f);
@@ -425,7 +418,7 @@ public class HomeworkActivity extends Activity {
         }
         final List<Schedule.Detail> sel = selectedTargets();
         if (sel.isEmpty()) {
-            status("Отметьте хотя бы один класс.", RED);
+            status("Отметьте хотя бы один класс.", red);
             return;
         }
         StringBuilder who = new StringBuilder();
@@ -471,7 +464,7 @@ public class HomeworkActivity extends Activity {
                 } else {
                     String m = err;
                     if (!done.isEmpty()) m = "Отправлено: " + String.join(", ", done) + ". Остальным — ошибка: " + err;
-                    status(m, RED);
+                    status(m, red);
                 }
             });
         }).start();
@@ -531,7 +524,7 @@ public class HomeworkActivity extends Activity {
         busy = b;
         expandButton.setEnabled(!b);
         if (sendButton.getAlpha() == 1f) sendButton.setEnabled(!b);
-        if (msg != null) status(msg, GRAY);
+        if (msg != null) status(msg, muted);
     }
 
     private void status(String msg, int color) {
@@ -540,26 +533,9 @@ public class HomeworkActivity extends Activity {
     }
 
     private TextView label(String s) {
-        TextView t = text(s, 13, PURPLE, true);
-        t.setPadding(0, dp(14), 0, dp(4));
+        TextView t = text(s, 13, Ui.c(this, R.color.a_primary), 600);
+        t.setPadding(0, dp(16), 0, dp(6));
         return t;
-    }
-
-    private EditText edit(String hint, int lines) {
-        EditText e = new EditText(this);
-        e.setHint(hint);
-        e.setMinLines(lines);
-        e.setGravity(Gravity.TOP | Gravity.START);
-        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        e.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(0xFFF8F3FB);
-        g.setStroke(dp(1), 0xFFCE93D8);
-        g.setCornerRadius(dp(10));
-        e.setBackground(g);
-        e.setPadding(dp(10), dp(8), dp(10), dp(8));
-        return e;
     }
 
     private LinearLayout.LayoutParams fullWidth(int height, int top) {
@@ -568,33 +544,12 @@ public class HomeworkActivity extends Activity {
         return lp;
     }
 
-    private Button button(String label, int bg, int fg) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setTextColor(fg);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(bg);
-        g.setCornerRadius(dp(12));
-        if (bg == Color.WHITE) g.setStroke(dp(1), fg);
-        b.setBackground(g);
-        b.setPadding(dp(8), 0, dp(8), 0);
-        return b;
-    }
-
-    private TextView text(String s, int sp, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTextColor(color);
-        if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
-        return t;
+    private TextView text(String s, int sp, int color, int weight) {
+        return Ui.text(this, s, sp, color, weight);
     }
 
     private int dp(int v) {
-        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v,
-                getResources().getDisplayMetrics()));
+        return Ui.dp(this, v);
     }
 
     @Override

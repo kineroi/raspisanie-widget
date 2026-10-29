@@ -1,11 +1,7 @@
 package kz.nikolaevka.raspisanie;
 
 import android.app.Activity;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,12 +21,6 @@ import java.util.List;
 /** Успеваемость: группа риска, сколько нужно на СОЧ, контроль конца четверти. Только просмотр. */
 public class GradesActivity extends Activity {
 
-    private static final int PURPLE_DARK = 0xFF4A148C;
-    private static final int PURPLE = 0xFF7B1FA2;
-    private static final int PURPLE_LIGHT = 0xFFF3E5F5;
-    private static final int GRAY = 0xFF555555;
-    private static final int RED = 0xFFC62828;
-
     private boolean busy = false;
     private boolean onlyRisk = false;
     private String message = null;
@@ -38,7 +28,6 @@ public class GradesActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(PURPLE_DARK);
         render();
         Journals.Data d = Journals.load(this);
         if (System.currentTimeMillis() - d.updatedAt > 60L * 60 * 1000) refresh();
@@ -68,41 +57,39 @@ public class GradesActivity extends Activity {
     private void render() {
         Journals.Data d = Journals.load(this);
         ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(PURPLE_LIGHT);
+        scroll.setBackgroundColor(c(R.color.a_bg));
         scroll.setFitsSystemWindows(true);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(16), dp(16), dp(16), dp(24));
+        col.setPadding(dp(20), dp(16), dp(20), dp(24));
         scroll.addView(col);
 
-        col.addView(text("Успеваемость", 24, PURPLE_DARK, true));
-        col.addView(text(busy ? "Загружаю журналы из BilimClass…" : when(d.updatedAt), 13, GRAY, false));
-        if (message != null) col.addView(text(message, 13, RED, false));
+        col.addView(text("Успеваемость", 24, c(R.color.a_text), 400));
+        col.addView(text(busy ? "Загружаю журналы из BilimClass…" : when(d.updatedAt), 13, c(R.color.a_muted), 400));
+        if (message != null) col.addView(text(message, 13, c(R.color.a_red), 400));
 
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        CheckBox cb = new CheckBox(this);
-        cb.setText("Только группа риска");
-        cb.setChecked(onlyRisk);
+        CheckBox cb = Ui.checkBox(this, "Только группа риска", onlyRisk);
         cb.setOnCheckedChangeListener((v, on) -> {
             onlyRisk = on;
             render();
         });
         bar.addView(cb, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        Button upd = button("Обновить", PURPLE, Color.WHITE);
+        Button upd = Ui.button(this, "Обновить", true);
         upd.setEnabled(!busy);
         upd.setOnClickListener(v -> refresh());
         bar.addView(upd, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(42)));
-        col.addView(bar, margins(dp(8)));
+        col.addView(bar, margins(dp(12)));
 
         Grades.Check check = Grades.quarterCheck(d.journals, d.lessons, LocalDate.now().toString());
         if (check != null) col.addView(checkCard(check));
 
         if (d.journals.isEmpty()) {
-            LinearLayout card = card(Color.WHITE);
+            LinearLayout card = Ui.card(this);
             card.addView(text(d.updatedAt == 0 ? "Нажмите «Обновить», чтобы загрузить журналы из BilimClass."
-                    : "Журналов не найдено.", 14, GRAY, false));
+                    : "Журналов не найдено.", 14, c(R.color.a_muted), 400));
             col.addView(card);
         }
         for (Grades.Journal j : d.journals) col.addView(classCard(j));
@@ -110,33 +97,34 @@ public class GradesActivity extends Activity {
         col.addView(text("Оценка: если BilimClass уже рассчитал рекомендуемую — показана она; иначе — расчёт "
                 + "приложения по формуле журнала (ФО 25%, СОР 25%, СОЧ 50%; <40% — 2, 40–64% — 3, 65–84% — 4, "
                 + "от 85% — 5). «прогноз» — пока не все части выставлены. «На СОЧ» — сколько баллов нужно при "
-                + "нынешних ФО и СОР. Оценки учеников хранятся только на этом телефоне.", 12, 0xFF9575CD, false));
+                + "нынешних ФО и СОР. Оценки учеников хранятся только на этом телефоне.", 12, c(R.color.a_muted), 400));
         setContentView(scroll);
     }
 
     private View checkCard(Grades.Check c) {
-        LinearLayout card = card(0xFFFFF8E1);
+        LinearLayout card = Ui.card(this);
+        card.setBackground(Ui.round(this, c(R.color.a_orange_soft), 16));
         String head = c.daysLeft >= 0 ? "Конец четверти через " + c.daysLeft + " дн. (" + dm(c.end) + ")"
                 : "Четверть закончилась " + dm(c.end);
-        card.addView(text(head, 16, 0xFF8D6E00, true));
-        if (c.deadline != null) card.addView(text("Итоговые — до " + dm(c.deadline), 13, GRAY, false));
+        card.addView(text(head, 16, c(R.color.a_orange), 600));
+        if (c.deadline != null) card.addView(text("Итоговые — до " + dm(c.deadline), 13, c(R.color.a_muted), 400));
         if (c.items.isEmpty()) {
-            card.addView(text("Всё в порядке: итоговые, СОР/СОЧ, темы и ДЗ заполнены ✓", 14, 0xFF2E7D32, false));
+            card.addView(text("Всё в порядке: итоговые, СОР/СОЧ, темы и ДЗ заполнены ✓", 14, c(R.color.a_green), 500));
         }
-        for (String it : c.items) card.addView(text("• " + it, 14, 0xFF333333, false));
+        for (String it : c.items) card.addView(text("• " + it, 14, c(R.color.a_text), 400));
         return card;
     }
 
     private View classCard(Grades.Journal j) {
-        LinearLayout card = card(Color.WHITE);
+        LinearLayout card = Ui.card(this);
         List<Grades.Row> rows = Grades.summary(j);
         int risk = 0;
         for (Grades.Row r : rows) if (r.risk != null) risk++;
-        card.addView(text(j.cls + (j.subject.isEmpty() ? "" : " · " + j.subject), 17, PURPLE_DARK, true));
+        card.addView(text(j.cls + (j.subject.isEmpty() ? "" : " · " + j.subject), 18, c(R.color.a_text), 500));
         StringBuilder sub = new StringBuilder();
         if (j.period != null) sub.append(j.period.n).append(" четверть, ").append(dm(j.period.start)).append("–").append(dm(j.period.end));
         if (risk > 0) sub.append(" · группа риска: ").append(risk);
-        card.addView(text(sub.toString(), 13, risk > 0 ? RED : GRAY, false));
+        card.addView(text(sub.toString(), 13, c(risk > 0 ? R.color.a_red : R.color.a_muted), 400));
         int shown = 0;
         for (Grades.Row r : rows) {
             if (onlyRisk && r.risk == null) continue;
@@ -144,32 +132,31 @@ public class GradesActivity extends Activity {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(0, dp(8), 0, 0);
+            row.setPadding(0, dp(10), 0, 0);
             LinearLayout left = new LinearLayout(this);
             left.setOrientation(LinearLayout.VERTICAL);
-            left.addView(text(r.st.name, 15, 0xFF222222, true));
+            left.addView(text(r.st.name, 15, c(R.color.a_text), 500));
             String parts = "ФО " + pct(r.stats.fo) + " · СОР " + pct(r.stats.sor) + " · СОЧ " + pct(r.stats.soch)
                     + " · итог " + (r.stats.total == null ? "—" : r.stats.total + "%" + (r.stats.forecast ? " (прогноз)" : ""));
-            left.addView(text(parts, 12, GRAY, false));
-            if (r.risk != null) left.addView(text("⚠ " + Grades.riskText(r.risk), 13, RED, true));
-            if (r.soch != null) left.addView(text(sochText(r.soch), 12, GRAY, false));
+            left.addView(text(parts, 12, c(R.color.a_muted), 400));
+            if (r.risk != null) left.addView(text("⚠ " + Grades.riskText(r.risk), 13, c(R.color.a_red), 600));
+            if (r.soch != null) left.addView(text(sochText(r.soch), 12, c(R.color.a_muted), 400));
             row.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             if (r.stats.grade != null) row.addView(gradeBadge(r.stats.grade));
             card.addView(row);
         }
-        if (shown == 0) card.addView(text(onlyRisk ? "Никого в группе риска ✓" : "Нет учеников.", 14, GRAY, false));
+        if (shown == 0) card.addView(text(onlyRisk ? "Никого в группе риска ✓" : "Нет учеников.", 14, c(R.color.a_muted), 400));
         return card;
     }
 
     private TextView gradeBadge(int g) {
-        int[] bg = {0, 0, 0xFFFFCDD2, 0xFFFFE0B2, 0xFFE1F5FE, 0xFFC8E6C9};
-        int[] fg = {0, 0, 0xFFB71C1C, 0xFF8D4A00, 0xFF01579B, 0xFF1B5E20};
-        TextView t = text(String.valueOf(g), 16, g >= 2 && g <= 5 ? fg[g] : GRAY, true);
+        // 2 — красный, 3 — оранжевый, 4 — синий, 5 — зелёный, как плашки на главном экране
+        int[] bg = {0, 0, R.color.a_red_soft, R.color.a_orange_soft, R.color.a_blue_soft, R.color.a_green_soft};
+        int[] fg = {0, 0, R.color.a_red, R.color.a_orange, R.color.a_blue, R.color.a_green};
+        boolean known = g >= 2 && g <= 5;
+        TextView t = text(String.valueOf(g), 16, c(known ? fg[g] : R.color.a_muted), 600);
         t.setGravity(Gravity.CENTER);
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(g >= 2 && g <= 5 ? bg[g] : 0xFFEEEEEE);
-        d.setCornerRadius(dp(8));
-        t.setBackground(d);
+        t.setBackground(Ui.round(this, c(known ? bg[g] : R.color.a_border), 8));
         t.setMinWidth(dp(34));
         t.setPadding(dp(6), dp(2), dp(6), dp(2));
         return t;
@@ -202,18 +189,6 @@ public class GradesActivity extends Activity {
         return "обновлено " + WidgetState.dateText(t.toLocalDate()) + " в " + hm;
     }
 
-    private LinearLayout card(int bg) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(10), dp(14), dp(12));
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(bg);
-        g.setCornerRadius(dp(16));
-        card.setBackground(g);
-        card.setLayoutParams(margins(dp(10)));
-        return card;
-    }
-
     private LinearLayout.LayoutParams margins(int top) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -221,29 +196,15 @@ public class GradesActivity extends Activity {
         return lp;
     }
 
-    private Button button(String label, int bg, int fg) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setTextColor(fg);
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(bg);
-        g.setCornerRadius(dp(12));
-        b.setBackground(g);
-        b.setPadding(dp(14), 0, dp(14), 0);
-        return b;
+    private int c(int colorRes) {
+        return Ui.c(this, colorRes);
     }
 
-    private TextView text(String s, int sp, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTextColor(color);
-        if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
-        return t;
+    private TextView text(String s, int sp, int color, int weight) {
+        return Ui.text(this, s, sp, color, weight);
     }
 
     private int dp(int v) {
-        return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()));
+        return Ui.dp(this, v);
     }
 }

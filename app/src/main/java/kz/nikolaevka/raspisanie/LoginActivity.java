@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.TypedValue;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebSettings;
@@ -59,20 +58,17 @@ public class LoginActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(0xFF4A148C);
-
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setFitsSystemWindows(true);
+        col.setBackgroundColor(Ui.c(this, R.color.a_bg));
 
-        TextView hint = new TextView(this);
-        hint.setText("Войдите в BilimClass как обычно. Пароль вводится на сайте BilimClass "
-                + "и не сохраняется в приложении. После входа окно закроется само.");
-        hint.setTextColor(0xFFFFFFFF);
-        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        hint.setBackgroundColor(0xFF6A1B9A);
-        int pad = Math.round(12 * getResources().getDisplayMetrics().density);
-        hint.setPadding(pad, pad, pad, pad);
+        TextView hint = Ui.text(this, "Войдите в BilimClass как обычно. Пароль вводится на сайте BilimClass "
+                + "и не сохраняется в приложении. После входа окно закроется само.",
+                14, Ui.c(this, R.color.a_text), 400);
+        hint.setBackgroundColor(Ui.c(this, R.color.a_primary_soft));
+        int pad = Ui.dp(this, 16);
+        hint.setPadding(pad, Ui.dp(this, 12), pad, Ui.dp(this, 12));
         col.addView(hint, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 

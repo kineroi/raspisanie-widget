@@ -8,4 +8,10 @@
         <item name="android:navigationBarColor">@color/a_surface</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
+
+    <!-- Окно «Домашнее задание» поверх других приложений -->
+    <style name="DialogTheme" parent="@android:style/Theme.Material.Light.Dialog.NoActionBar">
+        <item name="android:windowBackground">@drawable/dialog_bg</item>
+        <item name="android:colorAccent">@color/a_primary</item>
+    </style>
 </resources>
