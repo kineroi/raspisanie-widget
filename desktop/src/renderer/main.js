@@ -200,7 +200,7 @@ function renderAi() {
     return;
   }
   box.append(el('div', 'muted small',
-    'Нужен, чтобы ИИ расписывал домашку на русском и английском. Подходят ключи Google Gemini, Claude, Groq, '
+    'Нужен, чтобы ИИ расписывал домашку на русском и английском. Подходят ключи Google Gemini, Claude, Groq, xAI Grok, '
     + 'OpenRouter, OpenAI, DeepSeek, Mistral, AnyModel. Сервис определяется сам. Ключ хранится только на этом компьютере (в зашифрованном виде).'));
   const link = el('a', 'small', 'Бесплатный ключ: aistudio.google.com → Get API key');
   link.href = '#';
@@ -208,7 +208,7 @@ function renderAi() {
   box.append(link);
   const input = el('input');
   input.type = 'password';
-  input.placeholder = 'Вставьте ключ (AIza…, sk-…, gsk_…)';
+  input.placeholder = 'Вставьте ключ (AIza…, sk-…, gsk_…, xai-…)';
   input.style.marginTop = '8px';
   const base = el('input');
   base.type = 'text';

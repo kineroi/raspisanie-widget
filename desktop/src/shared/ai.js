@@ -1,7 +1,7 @@
 /*
  * Нейросети для «Расписать»: какой сервис по ключу, как к нему обращаться, какую модель взять.
  * Три формата запросов покрывают почти всё: Google Gemini, Anthropic Claude и «как у OpenAI»
- * (OpenAI, Groq, OpenRouter, DeepSeek, Mistral, AnyModel и любой свой адрес).
+ * (OpenAI, Groq, xAI Grok, OpenRouter, DeepSeek, Mistral, AnyModel и любой свой адрес).
  * Только данные и разбор ответов, без сети — сеть в main/ai.js. Тот же смысл, что Ai.java на телефоне.
  */
 'use strict';
@@ -12,6 +12,7 @@ const PROVIDERS = {
   gemini: { name: 'Google Gemini', kind: 'gemini', base: 'https://generativelanguage.googleapis.com/v1beta' },
   anthropic: { name: 'Claude (Anthropic)', kind: 'anthropic', base: 'https://api.anthropic.com/v1' },
   groq: { name: 'Groq', kind: 'openai', base: 'https://api.groq.com/openai/v1' },
+  xai: { name: 'xAI Grok', kind: 'openai', base: 'https://api.x.ai/v1' },
   openrouter: { name: 'OpenRouter', kind: 'openai', base: 'https://openrouter.ai/api/v1' },
   anymodel: { name: 'AnyModel', kind: 'openai', base: 'https://anymodel.org/v1' },
   openai: { name: 'OpenAI', kind: 'openai', base: 'https://api.openai.com/v1' },
@@ -25,6 +26,8 @@ function candidates(key) {
   if (k.startsWith('AIza')) return ['gemini'];
   if (k.startsWith('sk-ant-')) return ['anthropic'];
   if (k.startsWith('gsk_')) return ['groq'];
+  // Grok от xAI — не путать с Groq
+  if (k.startsWith('xai-')) return ['xai'];
   if (k.startsWith('sk-or-')) return ['openrouter'];
   if (k.startsWith('sk-proj-') || k.startsWith('sk-svcacct-')) return ['openai'];
   // «sk-» без особого начала: так выглядят ключи AnyModel, OpenAI и DeepSeek
@@ -107,7 +110,8 @@ function parseModels(p, body) {
 const PREFERRED = [
   /^gemini-flash-lite-latest$/, /^gemini-flash-latest$/, /gemini-[\d.]+-flash-lite$/, /gemini-[\d.]+-flash$/,
   /haiku/, /^llama-3\.3-70b-versatile$/, /^deepseek-chat$/, /gpt-[\w.]*mini$/, /mistral-small-latest/,
-  /gemini.*flash/, /gpt-[\w.]*mini/, /:free$/, /claude/, /gpt/, /deepseek/, /llama/, /gemini/,
+  /^grok-\d[\w.-]*-fast/, /^grok-\d[\w.-]*mini/,
+  /gemini.*flash/, /gpt-[\w.]*mini/, /:free$/, /claude/, /gpt/, /deepseek/, /llama/, /gemini/, /^grok/,
 ];
 
 function defaultModel(models) {

@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
 /**
  * Нейросети для «Расписать»: какой сервис по ключу, список моделей и сам запрос.
  * Три формата покрывают почти всё: Google Gemini, Anthropic Claude и «как у OpenAI»
- * (OpenAI, Groq, OpenRouter, DeepSeek, Mistral, AnyModel и любой свой адрес).
+ * (OpenAI, Groq, xAI Grok, OpenRouter, DeepSeek, Mistral, AnyModel и любой свой адрес).
  * Тот же смысл, что desktop/src/shared/ai.js в программе для Windows.
  */
 final class Ai {
@@ -48,6 +48,7 @@ final class Ai {
         add("gemini", "Google Gemini", GEMINI, "https://generativelanguage.googleapis.com/v1beta");
         add("anthropic", "Claude (Anthropic)", ANTHROPIC, "https://api.anthropic.com/v1");
         add("groq", "Groq", OPENAI, "https://api.groq.com/openai/v1");
+        add("xai", "xAI Grok", OPENAI, "https://api.x.ai/v1");
         add("openrouter", "OpenRouter", OPENAI, "https://openrouter.ai/api/v1");
         add("anymodel", "AnyModel", OPENAI, "https://anymodel.org/v1");
         add("openai", "OpenAI", OPENAI, "https://api.openai.com/v1");
@@ -76,6 +77,8 @@ final class Ai {
         if (k.startsWith("AIza")) return Collections.singletonList("gemini");
         if (k.startsWith("sk-ant-")) return Collections.singletonList("anthropic");
         if (k.startsWith("gsk_")) return Collections.singletonList("groq");
+        // Grok от xAI — не путать с Groq
+        if (k.startsWith("xai-")) return Collections.singletonList("xai");
         if (k.startsWith("sk-or-")) return Collections.singletonList("openrouter");
         if (k.startsWith("sk-proj-") || k.startsWith("sk-svcacct-")) return Collections.singletonList("openai");
         // «sk-» без особого начала: так выглядят ключи AnyModel, OpenAI и DeepSeek
@@ -194,7 +197,8 @@ final class Ai {
     private static final String[] PREFERRED = {
             "^gemini-flash-lite-latest$", "^gemini-flash-latest$", "gemini-[\\d.]+-flash-lite$", "gemini-[\\d.]+-flash$",
             "haiku", "^llama-3\\.3-70b-versatile$", "^deepseek-chat$", "gpt-[\\w.]*mini$", "mistral-small-latest",
-            "gemini.*flash", "gpt-[\\w.]*mini", ":free$", "claude", "gpt", "deepseek", "llama", "gemini",
+            "^grok-\\d[\\w.-]*-fast", "^grok-\\d[\\w.-]*mini",
+            "gemini.*flash", "gpt-[\\w.]*mini", ":free$", "claude", "gpt", "deepseek", "llama", "gemini", "^grok",
     };
 
     static String defaultModel(List<String> models) {

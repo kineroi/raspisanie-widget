@@ -19,6 +19,9 @@ public class AiTest {
         assertEquals(Collections.singletonList("gemini"), Ai.candidates("AIzaSyXXXX"));
         assertEquals(Collections.singletonList("anthropic"), Ai.candidates("sk-ant-api03-XXXX"));
         assertEquals(Collections.singletonList("groq"), Ai.candidates("gsk_XXXX"));
+        assertEquals(Collections.singletonList("xai"), Ai.candidates("xai-TXXXX"));
+        assertEquals("grok-4-fast", Ai.defaultModel(Arrays.asList("grok-4", "grok-4-fast", "grok-code-fast-1")));
+        assertEquals("grok-3-mini", Ai.defaultModel(Arrays.asList("grok-3", "grok-3-mini")));
         assertEquals(Collections.singletonList("openrouter"), Ai.candidates("sk-or-v1-XXXX"));
         assertEquals(Collections.singletonList("openai"), Ai.candidates("sk-proj-XXXX"));
         assertEquals(Arrays.asList("anymodel", "openai", "deepseek"), Ai.candidates(" sk-dc9dXXXX "));
