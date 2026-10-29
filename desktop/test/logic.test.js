@@ -149,3 +149,35 @@ test('напоминание за 5 минут до урока', () => {
   assert.equal(t.title, 'Через 5 минут: 7А + 8А');
   assert.equal(t.body, '09:00–09:45 · 7А: Theme A · 8А: Theme B');
 });
+
+test('подсказки для повтора домашки', () => {
+  const lesson = (start, title, details) => ({ start, end: '10:00', title, details });
+  const days = {
+    '2026-10-19': { lessons: [lesson('09:00', '7А + 8А', [{ cls: '7А', homework: 'ex. 1' }, { cls: '8А', homework: 'ex. 1' }])] },
+    '2026-10-21': { lessons: [lesson('09:00', '7А + 8А', [{ cls: '7А', homework: 'learn new words' }, { cls: '8А', homework: '' }])] },
+    '2026-10-22': { lessons: [lesson('11:00', '9В', [{ cls: '9В', homework: 'learn new words' }])] },
+  };
+  const history = [
+    { text: 'Workbook p. 12', cls: '6А', date: '2026-10-20', start: '12:05' },
+    // та же отправка, что уже видна в расписании, — не считается дважды
+    { text: 'learn new words', cls: '9В', date: '2026-10-22', start: '11:00' },
+  ];
+  const now = lesson('09:00', '7А + 8А', [{ cls: '7А', homework: '' }, { cls: '8А', homework: '' }]);
+
+  const s = L.homeworkSuggestions(days, history, now, '2026-10-26');
+  assert.deepEqual(s.last, { text: 'learn new words', date: '2026-10-21', cls: '7А' });
+  // по 2 раза — сначала более свежее
+  assert.deepEqual(s.frequent, ['learn new words', 'ex. 1', 'Workbook p. 12']);
+
+  // Без списка классов (запасное расписание) классы берутся из названия урока
+  assert.equal(L.homeworkSuggestions(days, history, lesson('09:00', '7А + 8А', []), '2026-10-26').last.text, 'learn new words');
+
+  // Урок раньше всех известных — повторять нечего
+  assert.equal(L.homeworkSuggestions(days, history, now, '2026-10-01').last, null);
+
+  // История ограничена и новые записи — в начале
+  let h = [];
+  for (let i = 0; i < L.HOMEWORK_HISTORY_MAX + 5; i++) h = L.addHomeworkHistory(h, { text: `t${i}`, cls: '5А', date: '2026-10-01' });
+  assert.equal(h.length, L.HOMEWORK_HISTORY_MAX);
+  assert.equal(h[0].text, `t${L.HOMEWORK_HISTORY_MAX + 4}`);
+});

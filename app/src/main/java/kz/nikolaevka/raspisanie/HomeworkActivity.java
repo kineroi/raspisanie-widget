@@ -162,6 +162,7 @@ public class HomeworkActivity extends Activity {
                 : text("Расписывает: " + Ai.label(ai, Bilim.aiModel(this)), 12, muted, 400);
         aiNote.setPadding(0, dp(4), 0, 0);
         col.addView(aiNote);
+        addQuickHomework(col);
 
         col.addView(label("Текст для BilimClass (можно исправить)"));
         resultField = Ui.box(this, "Здесь появится готовый текст", 5);
@@ -212,6 +213,52 @@ public class HomeworkActivity extends Activity {
         col.addView(actions, fullWidth(ViewGroup.LayoutParams.WRAP_CONTENT, dp(12)));
 
         setContentView(scroll);
+    }
+
+    /** Кнопки «как в прошлый раз» и частые задания: нажатие вставляет текст в поле для BilimClass. */
+    private void addQuickHomework(LinearLayout col) {
+        HomeworkHistory.Suggestions s = HomeworkHistory.suggest(
+                HomeworkHistory.fromSchedule(Bilim.source(this), date), HomeworkHistory.load(this),
+                HomeworkHistory.classesOf(lesson), date.toString(), lesson.start.toString(), 8);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        if (s.last != null) {
+            final HomeworkHistory.Entry last = s.last;
+            String when = WidgetState.dateText(LocalDate.parse(last.date));
+            Button b = quickButton("↺ Как в прошлый раз (" + last.cls + ", " + when + ")", true);
+            b.setOnClickListener(v -> useQuick(last.text, "Вставлена домашка " + last.cls + " от " + when));
+            row.addView(b);
+        }
+        for (final String text : s.frequent) {
+            if (s.last != null && text.equals(s.last.text)) continue;
+            String title = text.split("\n")[0];
+            Button b = quickButton(title.length() > 40 ? title.substring(0, 40) + "…" : title, false);
+            b.setOnClickListener(v -> useQuick(text, "Вставлено частое задание"));
+            row.addView(b);
+        }
+        if (row.getChildCount() == 0) return;
+        col.addView(label("Или готовое задание"));
+        android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.addView(row);
+        col.addView(hs);
+    }
+
+    private Button quickButton(String label, boolean highlight) {
+        Button b = Ui.button(this, label, false);
+        b.setSingleLine(true);
+        if (highlight) b.setTextColor(Ui.c(this, R.color.a_primary));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(40));
+        lp.rightMargin = dp(8);
+        b.setLayoutParams(lp);
+        return b;
+    }
+
+    private void useQuick(String text, String what) {
+        resultField.setText(text);
+        resultField.requestFocus();
+        status(what + " — проверьте текст и отправьте.", muted);
     }
 
     /** Текущая домашка урока (если у всех классов одинаковая — она, иначе первая непустая). */
@@ -454,6 +501,8 @@ public class HomeworkActivity extends Activity {
             } catch (IOException e) {
                 error = errorText(e);
             }
+            // для кнопок «как в прошлый раз» и «частые задания»
+            HomeworkHistory.record(app, body, done, date, lesson.start);
             Bilim.sync(app);
             final String err = error;
             runOnUiThread(() -> {
