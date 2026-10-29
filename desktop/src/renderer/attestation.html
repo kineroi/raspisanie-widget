@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Аттестация</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <style>
+    .page { max-width: 980px; margin: 0 auto; padding: 24px 32px 40px; }
+    h1 { color: var(--text); font-size: 24px; font-weight: 400; margin: 0; }
+    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .card { background: var(--surface); border-radius: 8px; padding: 18px 20px; margin-top: 16px; }
+    .folder { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .folder code { font-family: inherit; font-weight: 500; color: var(--text); word-break: break-all; }
+    .drop {
+      margin-top: 16px; border: 1.5px dashed var(--border); border-radius: 8px; padding: 28px 16px;
+      text-align: center; color: var(--muted); cursor: pointer; background: var(--surface);
+    }
+    .drop.over { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+    .doc h2 { margin: 0; font-size: 16px; font-weight: 500; color: var(--text); word-break: break-all; }
+    .doc .state { font-size: 13px; margin-top: 2px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    .grid label { display: block; font-size: 12px; color: var(--muted); }
+    .grid select, .grid input { width: 100%; margin: 4px 0 0; }
+    input[type=date] {
+      font: inherit; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--field); color: var(--text);
+    }
+    .dest { margin-top: 10px; font-size: 12px; color: var(--muted); word-break: break-all; }
+    .doc .row { margin-top: 12px; }
+    .doc.saved { opacity: .75; }
+    .ok { color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="top">
+      <div class="grow">
+        <h1>Аттестация</h1>
+        <div class="muted small">Грамоты, сертификаты, дипломы — нейросеть определит вид документа, а программа разложит копии по папкам.</div>
+      </div>
+      <button id="saveAll" class="primary" disabled>Сохранить все</button>
+    </div>
+
+    <div class="card">
+      <div class="folder">
+        <span class="muted">Папка:</span>
+        <code id="root"></code>
+        <div class="grow"></div>
+        <button id="openRoot">Открыть папку</button>
+        <button id="chooseRoot">Изменить…</button>
+      </div>
+      <div id="rootHint" class="small muted" style="margin-top: 6px"></div>
+    </div>
+
+    <div class="drop" id="drop">📎 Перетащите сюда фото или PDF грамот и сертификатов — или нажмите, чтобы выбрать</div>
+    <div id="docs"></div>
+
+    <div class="small muted" style="margin-top: 16px">
+      Документ уходит в нейросеть только для распознавания. Если в нём есть имена учеников (например, «за подготовку победителя»),
+      они тоже будут переданы. Оригинал остаётся на месте — в папку кладётся копия.
+    </div>
+  </div>
+  <script src="../shared/attestation.js"></script>
+  <script src="attestation.js"></script>
+</body>
+</html>

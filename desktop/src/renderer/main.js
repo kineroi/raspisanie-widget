@@ -449,6 +449,7 @@ $('reminders').addEventListener('change', (e) => window.api.setReminders(e.targe
 $('gradeAlerts').addEventListener('change', (e) => window.api.setGradeAlerts(e.target.checked));
 $('openGrades').addEventListener('click', () => window.api.openGrades());
 $('openAnalysis').addEventListener('click', () => window.api.openAnalysis());
+$('openAttestation').addEventListener('click', () => window.api.openAttestation());
 $('testReminder').addEventListener('click', async () => {
   if (!(await window.api.testReminder())) alert('Ближайших уроков не найдено.');
 });
