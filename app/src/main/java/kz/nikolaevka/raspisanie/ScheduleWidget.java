@@ -77,6 +77,7 @@ public class ScheduleWidget extends AppWidgetProvider {
         // Напоминания нужны, даже если виджета нет на экране
         Reminders.schedule(context);
         Digest.schedule(context);
+        DailyMessage.schedule(context);
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         int[] ids = manager.getAppWidgetIds(new ComponentName(context, ScheduleWidget.class));
         if (ids == null || ids.length == 0) return;

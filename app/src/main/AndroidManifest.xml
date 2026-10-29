@@ -15,6 +15,12 @@
     <!-- Напоминания об уроках -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- чтобы найти установленный WhatsApp для сообщения по учебным дням -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -55,6 +61,19 @@
         <receiver
             android:name=".Digest$Receiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".DailyMessage$Receiver"
+            android:exported="false" />
+
+        <!-- из уведомления «Сообщение в WhatsApp»: открывает WhatsApp с готовым текстом и сразу закрывается -->
+        <activity
+            android:name=".SendMessageActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <activity
             android:name=".GradesActivity"

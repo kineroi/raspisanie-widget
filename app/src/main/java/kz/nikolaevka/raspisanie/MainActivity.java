@@ -195,6 +195,69 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    /** Сообщение в группу WhatsApp по учебным дням: уведомление в нужное время, нажатие — WhatsApp с текстом. */
+    private View whatsAppCard() {
+        LinearLayout card = card();
+        card.addView(text("Сообщение в WhatsApp", 16, c(R.color.a_text), 500));
+        card.addView(text("В учебные дни в это время придёт уведомление. Нажмите на него — откроется WhatsApp "
+                + "с готовым текстом: выберите группу и нажмите «Отправить». Каникулы и праздники пропускаются.",
+                13, c(R.color.a_muted), 400));
+        android.widget.CheckBox cb = checkBox("Напоминать по учебным дням", DailyMessage.enabled(this));
+        cb.setOnCheckedChangeListener((v, on) -> {
+            DailyMessage.setEnabled(this, on);
+            if (on && !notificationsAllowed()) {
+                askedNotifications = false;
+                askNotificationPermission();
+            }
+            render();
+        });
+        card.addView(cb);
+        if (!DailyMessage.enabled(this)) return card;
+
+        android.widget.EditText box = Ui.box(this, DailyMessage.DEFAULT_TEXT, 2);
+        box.setText(DailyMessage.text(this));
+        box.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                DailyMessage.setText(MainActivity.this, s.toString());
+            }
+        });
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        bp.topMargin = dp(8);
+        card.addView(box, bp);
+
+        java.time.LocalTime t = DailyMessage.time(this);
+        Button time = button("Время: " + t, false);
+        time.setOnClickListener(v -> new android.app.TimePickerDialog(this, (p, h, m) -> {
+            DailyMessage.setTime(this, java.time.LocalTime.of(h, m));
+            render();
+        }, t.getHour(), t.getMinute(), true).show());
+        card.addView(time, buttonParams(ViewGroup.LayoutParams.MATCH_PARENT, 10));
+
+        LocalDateTime next = DailyMessage.nextAt(LocalDateTime.now(), t, Attendance.load(this));
+        card.addView(text(next == null ? "Учебный год закончился — напоминаний не будет."
+                        : "Следующее: " + next.toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern(
+                        "EEEE, d MMMM", new java.util.Locale("ru"))) + " в " + t,
+                13, c(R.color.a_muted), 400));
+        if (!notificationsAllowed()) {
+            card.addView(text("Уведомления выключены в настройках Android — напоминание не будет видно.",
+                    13, c(R.color.a_red), 400));
+        }
+        Button test = button("Проверить сейчас", false);
+        test.setOnClickListener(v -> DailyMessage.show(this));
+        card.addView(test, buttonParams(ViewGroup.LayoutParams.WRAP_CONTENT, 6));
+        return card;
+    }
+
     // ---------- Обновление приложения ----------
 
     private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -731,6 +794,7 @@ public class MainActivity extends Activity {
         col.addView(bilimCard());
         col.addView(aiCard());
         col.addView(remindersCard());
+        col.addView(whatsAppCard());
 
         if (AppWidgetManager.getInstance(this).isRequestPinAppWidgetSupported()) {
             Button add = button("Добавить виджет на главный экран", false);
