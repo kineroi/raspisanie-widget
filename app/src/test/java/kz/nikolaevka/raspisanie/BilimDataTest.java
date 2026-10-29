@@ -209,5 +209,11 @@ public class BilimDataTest {
         assertEquals("до урока", s.countdownLabel);
         assertNotNull(s.progressFrom);
         assertTrue(s.progressFrom.isBefore(s.countdownTo));
+        // Компактный виджет: в карточке следующий урок 5А + 6А, под ней — тот, что после него
+        assertEquals("Потом: 9А · 10:40", s.nextText);
+        // Идёт урок 5А + 6А — под карточкой следующий
+        assertEquals("Далее: 9А · 10:40", WidgetState.compute(LocalDateTime.of(2026, 10, 19, 10, 0)).nextText);
+        // Идёт последний урок дня
+        assertEquals("Это последний урок сегодня", WidgetState.compute(LocalDateTime.of(2026, 10, 19, 12, 50)).nextText);
     }
 }

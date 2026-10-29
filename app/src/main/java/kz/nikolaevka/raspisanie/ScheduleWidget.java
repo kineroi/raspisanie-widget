@@ -9,7 +9,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.SystemClock;
+import android.util.ArrayMap;
+import android.util.SizeF;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.StrikethroughSpan;
@@ -20,6 +23,7 @@ import android.widget.RemoteViews;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.Duration;
+import java.util.Map;
 
 public class ScheduleWidget extends AppWidgetProvider {
 
@@ -81,8 +85,20 @@ public class ScheduleWidget extends AppWidgetProvider {
         WidgetState s = WidgetState.compute(now, Bilim.source(context));
         if (s.subText == null && Bilim.needLogin(context)) {
             s.subText = "Войдите в BilimClass заново (откройте приложение)";
+            s.nextText = s.subText;
         }
-        manager.updateAppWidget(ids, build(context, s, now));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+: рабочий стол сам выбирает вид под размер виджета
+            Map<SizeF, RemoteViews> bySize = new ArrayMap<>();
+            bySize.put(new SizeF(SMALL_MIN_DP, SMALL_MIN_DP), buildSmall(context, s, now));
+            bySize.put(new SizeF(FULL_MIN_WIDTH_DP, FULL_MIN_HEIGHT_DP), build(context, s, now));
+            manager.updateAppWidget(ids, new RemoteViews(bySize));
+        } else {
+            for (int id : ids) {
+                manager.updateAppWidget(id, isSmall(manager.getAppWidgetOptions(id))
+                        ? buildSmall(context, s, now) : build(context, s, now));
+            }
+        }
         Bilim.schedule(context);
         LocalDateTime next = s.nextUpdate;
         if (s.progressFrom != null) {
@@ -92,14 +108,37 @@ public class ScheduleWidget extends AppWidgetProvider {
         scheduleNext(context, next);
     }
 
-    private static RemoteViews build(Context context, WidgetState s, LocalDateTime now) {
-        RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.widget);
+    /** Виджет уже этого размера (dp) — показываем полный вид, меньше — компактный. */
+    private static final int FULL_MIN_WIDTH_DP = 240;
+    private static final int FULL_MIN_HEIGHT_DP = 220;
+    private static final int SMALL_MIN_DP = 100;
 
-        v.setTextViewText(R.id.day_name, s.dayName);
-        v.setTextViewText(R.id.date, s.dateText);
+    /** До Android 12: выбор вида по размеру, который сообщил рабочий стол (в портретной ориентации). */
+    private static boolean isSmall(Bundle options) {
+        int w = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH);
+        int h = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT);
+        return w > 0 && h > 0 && (w < FULL_MIN_WIDTH_DP || h < FULL_MIN_HEIGHT_DP);
+    }
+
+    @Override
+    public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager, int id, Bundle options) {
+        // виджет растянули или сжали — перерисовать в подходящем виде
+        updateAll(context);
+    }
+
+    /** Компактный вид 2×2: часы, карточка «Сейчас» и следующий урок. */
+    private static RemoteViews buildSmall(Context context, WidgetState s, LocalDateTime now) {
+        RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.widget_small);
         showText(v, R.id.pill, s.counter);
+        fillHero(v, s, now);
+        showText(v, R.id.next_text, s.nextText);
+        v.setOnClickPendingIntent(R.id.root, openApp(context));
+        return v;
+    }
+
+    /** Карточка «Сейчас»: надпись, класс, отсчёт и полоса прогресса — общая для обоих видов. */
+    private static void fillHero(RemoteViews v, WidgetState s, LocalDateTime now) {
         v.setTextViewText(R.id.hero_label, s.heroLabel);
-        showText(v, R.id.hero_range, s.heroRange);
         v.setTextViewText(R.id.status_text, s.heroTitle);
 
         if (s.countdownTo != null) {
@@ -123,6 +162,23 @@ public class ScheduleWidget extends AppWidgetProvider {
         } else {
             v.setViewVisibility(R.id.progress, View.GONE);
         }
+    }
+
+    private static PendingIntent openApp(Context context) {
+        Intent open = new Intent(context, MainActivity.class);
+        open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        return PendingIntent.getActivity(context, 0, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private static RemoteViews build(Context context, WidgetState s, LocalDateTime now) {
+        RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.widget);
+
+        v.setTextViewText(R.id.day_name, s.dayName);
+        v.setTextViewText(R.id.date, s.dateText);
+        showText(v, R.id.pill, s.counter);
+        showText(v, R.id.hero_range, s.heroRange);
+        fillHero(v, s, now);
 
         if (s.subText != null && !s.subText.isEmpty()) {
             v.setTextViewText(R.id.sub_text, s.subText);
@@ -197,11 +253,7 @@ public class ScheduleWidget extends AppWidgetProvider {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         }
 
-        Intent open = new Intent(context, MainActivity.class);
-        open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent pi = PendingIntent.getActivity(context, 0, open,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        v.setOnClickPendingIntent(R.id.root, pi);
+        v.setOnClickPendingIntent(R.id.root, openApp(context));
         return v;
     }
 
