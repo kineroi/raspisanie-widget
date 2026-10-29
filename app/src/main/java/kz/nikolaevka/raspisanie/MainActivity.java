@@ -3,6 +3,7 @@ package kz.nikolaevka.raspisanie;
 import android.app.Activity;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Paint;
 import android.graphics.Typeface;
@@ -77,6 +78,7 @@ public class MainActivity extends Activity {
         checkUpdates(false);
         askNotificationPermission();
         loadRisk();
+        syncAttendance();
         handler.removeCallbacks(minuteTick);
         handler.postDelayed(minuteTick, 60_000);
     }
@@ -1034,6 +1036,21 @@ public class MainActivity extends Activity {
     }
 
     /** 1 урок, 2 урока, 5 уроков */
+    /** Отметки посещаемости с компьютера — чтобы плитка показывала свежие предупреждения. */
+    private void syncAttendance() {
+        if (Attestation.scriptUrl(this).isEmpty()) return;
+        Context app = getApplicationContext();
+        new Thread(() -> {
+            try {
+                if (Attendance.sync(app)) runOnUiThread(() -> {
+                    if (!isFinishing()) render();
+                });
+            } catch (java.io.IOException ignored) {
+                // без связи — покажем то, что есть на телефоне
+            }
+        }).start();
+    }
+
     private static String plural(int n, String one, String few, String many) {
         int a = n % 100;
         int b = n % 10;

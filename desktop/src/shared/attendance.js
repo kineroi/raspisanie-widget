@@ -1,7 +1,11 @@
 'use strict';
 // Журнал посещаемости: учебные дни, отметки, предупреждения, выгрузка в Word. Без Electron, чтобы проверять тестами.
-// ФИО учеников хранятся только на устройстве и никуда не отправляются — ни в нейросеть, ни в BilimClass.
-// Тот же смысл, что Attendance.java на телефоне.
+// ФИО учеников не отправляются ни в нейросеть, ни в BilimClass — только в файл на Google Диске учителя
+// для синхронизации компьютера и телефона. Тот же смысл, что Attendance.java на телефоне.
+//
+// Синхронизация: у каждой отметки, ученика, класса и поправки дня есть время изменения t (мс).
+// Журналы двух устройств объединяются по элементам (merge): побеждает более позднее изменение,
+// удаление — это отметка «удалён» со своим временем, поэтому ничего не теряется и не воскресает.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.Attendance = factory();
@@ -36,20 +40,43 @@
 
   const reasonById = (id) => REASONS.find((r) => r.id === id) || null;
 
+  /** Часы (в тестах подменяются). */
+  let clock = () => Date.now();
+  const setClock = (fn) => { clock = fn; };
+
   function empty() {
-    return { classes: [], marks: {}, offDays: [], onDays: [] };
+    return { classes: [], marks: {}, days: {} };
   }
 
-  /** Сохранённый журнал → журнал с нужными полями. */
+  const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
+
+  /**
+   * Сохранённый журнал → журнал с нужными полями. Старый вид (offDays/onDays, без времени изменений)
+   * переводится в новый с временем 0 — любое новое изменение его перекроет.
+   */
   function normalize(j) {
-    const o = j && typeof j === 'object' ? j : {};
-    return {
-      classes: Array.isArray(o.classes) ? o.classes : [],
-      marks: o.marks && typeof o.marks === 'object' ? o.marks : {},
-      offDays: Array.isArray(o.offDays) ? o.offDays : [],
-      onDays: Array.isArray(o.onDays) ? o.onDays : [],
-    };
+    const o = isObj(j) ? j : {};
+    const days = {};
+    if (isObj(o.days)) for (const [d, e] of Object.entries(o.days)) if (isObj(e)) days[d] = { school: e.school, t: e.t || 0 };
+    for (const d of Array.isArray(o.offDays) ? o.offDays : []) if (!days[d]) days[d] = { school: false, t: 0 };
+    for (const d of Array.isArray(o.onDays) ? o.onDays : []) if (!days[d]) days[d] = { school: true, t: 0 };
+    const marks = {};
+    if (isObj(o.marks)) {
+      for (const [d, day] of Object.entries(o.marks)) {
+        if (!isObj(day)) continue;
+        marks[d] = {};
+        for (const [sid, m] of Object.entries(day)) if (isObj(m)) marks[d][sid] = { ...m, r: m.r || '', t: m.t || 0 };
+      }
+    }
+    const classes = (Array.isArray(o.classes) ? o.classes : []).filter(isObj).map((c) => ({
+      ...c,
+      t: c.t || 0,
+      students: (Array.isArray(c.students) ? c.students : []).filter(isObj).map((x) => ({ ...x, t: x.t || 0 })),
+    }));
+    return { classes, marks, days };
   }
+
+  const live = (x) => !x.deleted && !x.mergedInto;
 
   // ---------- Даты ----------
 
@@ -69,16 +96,13 @@
   }
 
   function isSchoolDay(j, iso) {
-    if (j.onDays.includes(iso)) return true;
-    if (j.offDays.includes(iso)) return false;
-    return defaultSchoolDay(iso);
+    const e = j.days[iso];
+    return e && typeof e.school === 'boolean' ? e.school : defaultSchoolDay(iso);
   }
 
   /** Сделать день учебным или выходным (например, перенос праздника или карантин). */
   function setSchoolDay(j, iso, on) {
-    j.onDays = j.onDays.filter((d) => d !== iso);
-    j.offDays = j.offDays.filter((d) => d !== iso);
-    if (on !== defaultSchoolDay(iso)) (on ? j.onDays : j.offDays).push(iso);
+    j.days[iso] = { school: on === defaultSchoolDay(iso) ? null : !!on, t: clock() };
   }
 
   function months() {
@@ -117,7 +141,7 @@
   /** Столбцы месяца: будни внутри четвертей и добавленные вручную дни; school — учебный ли. */
   function monthColumns(j, month) {
     return daysOfMonth(month)
-      .filter((d) => j.onDays.includes(d) || (quarterOf(d) && weekday(d) >= 1 && weekday(d) <= 5))
+      .filter((d) => (j.days[d] && j.days[d].school === true) || (quarterOf(d) && weekday(d) >= 1 && weekday(d) <= 5))
       .map((d) => ({ date: d, day: Number(d.slice(8)), school: isSchoolDay(j, d) }));
   }
 
@@ -127,21 +151,17 @@
 
   function getMark(j, iso, sid) {
     const day = j.marks[iso];
-    return (day && day[sid]) || null;
+    const m = day && day[sid];
+    return m && reasonById(m.r) ? m : null;
   }
 
-  /** reason = '' — был на уроках. Для «Другое» — своя запись. */
+  /** reason = '' — был на уроках (запись остаётся с временем, чтобы при синхронизации отметка не вернулась). */
   function setMark(j, iso, sid, reason, note) {
     const day = j.marks[iso] || (j.marks[iso] = {});
-    if (!reason || !reasonById(reason)) {
-      delete day[sid];
-    } else {
-      const m = { r: reason };
-      const t = String(note || '').trim();
-      if (reason === 'other' && t) m.note = t;
-      day[sid] = m;
-    }
-    if (!Object.keys(day).length) delete j.marks[iso];
+    const m = { r: reason && reasonById(reason) ? reason : '', t: clock() };
+    const text = String(note || '').trim();
+    if (m.r === 'other' && text) m.note = text;
+    day[sid] = m;
   }
 
   /** Код в клетке журнала: «б», «н»… Для «Другое» — «др». */
@@ -200,39 +220,153 @@
       const m = /^(\d+)/.exec(c.name);
       return m ? Number(m[1]) : 99;
     };
-    return j.classes.slice().sort((a, b) => num(a) - num(b) || a.name.localeCompare(b.name, 'ru'));
+    return j.classes.filter(live).sort((a, b) => num(a) - num(b) || a.name.localeCompare(b.name, 'ru'));
   }
 
   function sortedStudents(cls) {
-    return cls.students.slice().sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    return cls.students.filter(live).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }
 
   function addClass(j, name) {
-    const c = { id: newId(), name: String(name || '').trim() || 'Новый класс', students: [] };
+    const c = { id: newId(), name: String(name || '').trim() || 'Новый класс', t: clock(), students: [] };
     j.classes.push(c);
     return c;
   }
 
   function addStudent(cls, name) {
-    const s = { id: newId(), name: fixName(name) };
+    const s = { id: newId(), name: fixName(name), t: clock() };
     cls.students.push(s);
     return s;
   }
 
-  /** Удалить ученика вместе с его отметками. */
+  /** Переименовать ученика или класс. */
+  function rename(item, name) {
+    item.name = name;
+    item.t = clock();
+  }
+
+  /** Удалить ученика (его отметки больше нигде не показываются). */
   function removeStudent(j, cls, sid) {
-    cls.students = cls.students.filter((s) => s.id !== sid);
-    for (const d of Object.keys(j.marks)) {
-      delete j.marks[d][sid];
-      if (!Object.keys(j.marks[d]).length) delete j.marks[d];
-    }
+    const s = cls.students.find((x) => x.id === sid);
+    if (!s) return;
+    s.deleted = true;
+    s.t = clock();
   }
 
   function removeClass(j, cid) {
     const c = j.classes.find((x) => x.id === cid);
     if (!c) return;
-    for (const s of c.students.slice()) removeStudent(j, c, s.id);
-    j.classes = j.classes.filter((x) => x.id !== cid);
+    c.deleted = true;
+    c.t = clock();
+  }
+
+  // ---------- Синхронизация ----------
+
+  /** Подпись элемента: чем решать, если время изменения совпало до миллисекунды. */
+  const sig = (x) => [x.r, x.note, x.name, x.deleted, x.mergedInto, x.school].map((v) => (v == null ? '' : String(v))).join('|');
+
+  /** Из двух версий одного элемента — более позднюю. */
+  function newer(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    if ((b.t || 0) !== (a.t || 0)) return (b.t || 0) > (a.t || 0) ? b : a;
+    return sig(b) > sig(a) ? b : a;
+  }
+
+  /** Объединить два журнала (порядок не важен: merge(a, b) и merge(b, a) дают одно и то же). */
+  function merge(a, b) {
+    const x = normalize(JSON.parse(JSON.stringify(a || {})));
+    const y = normalize(JSON.parse(JSON.stringify(b || {})));
+    const classes = new Map();
+    for (const c of x.classes.concat(y.classes)) {
+      const cur = classes.get(c.id);
+      const students = new Map(cur ? cur.students.map((s) => [s.id, s]) : []);
+      for (const s of c.students) students.set(s.id, newer(students.get(s.id), s));
+      const head = newer(cur, c);
+      classes.set(c.id, { ...head, students: [...students.values()] });
+    }
+    const marks = {};
+    for (const src of [x.marks, y.marks]) {
+      for (const [d, day] of Object.entries(src)) {
+        const out = marks[d] || (marks[d] = {});
+        for (const [sid, m] of Object.entries(day)) out[sid] = newer(out[sid], m);
+      }
+    }
+    const days = {};
+    for (const src of [x.days, y.days]) for (const [d, e] of Object.entries(src)) days[d] = newer(days[d], e);
+    const j = { classes: [...classes.values()].sort((p, q) => (p.id < q.id ? -1 : 1)), marks, days };
+    for (const c of j.classes) c.students.sort((p, q) => (p.id < q.id ? -1 : 1));
+    dedupe(j);
+    return j;
+  }
+
+  /**
+   * Одинаковые классы и ученики (списки загружали из Word и на компьютере, и на телефоне) сливаются в один:
+   * остаётся тот, у кого меньше id, у другого — mergedInto. Отметки переносятся.
+   */
+  function dedupe(j) {
+    const lower = (s) => String(s || '').trim().toLowerCase();
+    const groups = new Map();
+    for (const c of j.classes.filter(live)) {
+      const k = lower(c.name);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(c);
+    }
+    for (const list of groups.values()) {
+      list.sort((p, q) => (p.id < q.id ? -1 : 1));
+      for (const c of list.slice(1)) {
+        c.mergedInto = list[0].id;
+        c.t = clock();
+      }
+    }
+    const byId = new Map(j.classes.map((c) => [c.id, c]));
+    const target = (c) => {
+      let t = c;
+      for (let i = 0; t && t.mergedInto && i < 20; i++) t = byId.get(t.mergedInto);
+      return t && live(t) ? t : null;
+    };
+    for (const c of j.classes) {
+      if (!c.mergedInto) continue;
+      const to = target(c);
+      if (!to) continue;
+      for (const s of c.students) {
+        const i = to.students.findIndex((x) => x.id === s.id);
+        if (i < 0) to.students.push(s);
+        else to.students[i] = newer(to.students[i], s);
+      }
+      c.students = [];
+    }
+    const moved = new Map();
+    for (const c of j.classes.filter(live)) {
+      const names = new Map();
+      for (const s of c.students.filter(live).sort((p, q) => (p.id < q.id ? -1 : 1))) {
+        const k = lower(s.name);
+        if (names.has(k)) {
+          s.mergedInto = names.get(k);
+          s.t = clock();
+        } else {
+          names.set(k, s.id);
+        }
+      }
+      for (const s of c.students) if (s.mergedInto) moved.set(s.id, s.mergedInto);
+    }
+    for (const day of Object.values(j.marks)) {
+      for (const [sid, to] of moved) {
+        if (!day[sid]) continue;
+        day[to] = newer(day[to], day[sid]);
+        delete day[sid];
+      }
+    }
+  }
+
+  /** Одинаковы ли журналы по содержанию (порядок ключей не важен). */
+  function same(a, b) {
+    const canon = (v) => {
+      if (Array.isArray(v)) return '[' + v.map(canon).sort().join(',') + ']';
+      if (isObj(v)) return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+      return JSON.stringify(v === undefined ? null : v);
+    };
+    return canon(normalize(a)) === canon(normalize(b));
   }
 
   // ---------- Список из Word ----------
@@ -277,13 +411,13 @@
     let classes = 0;
     let students = 0;
     for (const p of parsed) {
-      let c = j.classes.find((x) => x.name.toLowerCase() === p.name.toLowerCase());
+      let c = j.classes.find((x) => live(x) && x.name.toLowerCase() === p.name.toLowerCase());
       if (!c) {
         c = addClass(j, p.name);
         classes++;
       }
       for (const name of p.students) {
-        if (c.students.some((s) => s.name.toLowerCase() === name.toLowerCase())) continue;
+        if (c.students.some((s) => live(s) && s.name.toLowerCase() === name.toLowerCase())) continue;
         addStudent(c, name);
         students++;
       }
@@ -395,7 +529,7 @@
     const notes = [];
     let body = '';
     for (const c of sortedClasses(j)) {
-      if (!c.students.length) continue;
+      if (!sortedStudents(c).length) continue;
       body += para(`Список учащихся ${classGenitive(c.name)} ${title} ${year}`, { size: 26, bold: true, align: 'center', before: 120, after: 80 });
       const grid = [wNum, wName, ...days.map(() => wDay), wTotal, wTotal];
       body += '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/><w:tblBorders>'
@@ -453,7 +587,7 @@
 
   return {
     REASONS, QUARTERS, HOLIDAYS, SICK_DAYS, ABSENT_COUNT,
-    reasonById, empty, normalize, addDays, isSchoolDay, setSchoolDay, months, monthTitle, defaultMonth, monthColumns, schoolDays,
+    setClock, reasonById, empty, normalize, merge, same, rename, addDays, isSchoolDay, setSchoolDay, months, monthTitle, defaultMonth, monthColumns, schoolDays,
     getMark, setMark, markCode, monthStats, fixName, classGenitive, sortedClasses, sortedStudents, addClass, addStudent,
     removeStudent, removeClass, parseTemplate, importClasses, alerts, alertText, documentXml, docxFiles, fileName, plural,
   };

@@ -85,7 +85,7 @@ function snapshot() {
     gradeAlertsOn: store.get('gradeAlerts', true),
     update: updater.getState(),
     attendanceAlerts: attendance.alerts(),
-    attendanceReady: attendance.load().classes.length > 0,
+    attendanceReady: attendance.hasClasses(),
   };
 }
 
@@ -267,6 +267,24 @@ function openAttestation() {
 }
 
 let attendanceWin = null;
+let attendanceTimer = null;
+
+/** Обменяться отметками с телефоном через Google Диск; новое — в окна. В самопроверке не трогаем настоящий Диск. */
+function syncAttendance() {
+  if (SMOKE) return Promise.resolve();
+  return attendance.sync().then((changed) => {
+    if (changed) broadcast();
+    if (attendanceWin && !attendanceWin.isDestroyed()) {
+      attendanceWin.webContents.send('aj-synced', { journal: changed ? attendance.load() : null, status: attendance.syncStatus() });
+    }
+  });
+}
+
+/** После отметки — синхронизировать через пару секунд (несколько отметок подряд уйдут вместе). */
+function syncAttendanceSoon() {
+  clearTimeout(attendanceTimer);
+  attendanceTimer = setTimeout(syncAttendance, 2000);
+}
 
 function openAttendance() {
   if (attendanceWin && !attendanceWin.isDestroyed()) {
@@ -547,10 +565,18 @@ ipcMain.handle('att-open-root', () => {
   return true;
 });
 ipcMain.handle('open-attendance', () => openAttendance());
-ipcMain.handle('aj-load', () => attendance.load());
+ipcMain.handle('aj-load', () => {
+  syncAttendance();
+  return { journal: attendance.load(), status: attendance.syncStatus() };
+});
+ipcMain.handle('aj-sync-now', async () => {
+  await syncAttendance();
+  return { journal: attendance.load(), status: attendance.syncStatus() };
+});
 ipcMain.handle('aj-save', (_e, j) => {
   const r = attendance.save(j || {});
   broadcast();
+  syncAttendanceSoon();
   return r;
 });
 ipcMain.handle('aj-import', async (e) => {
@@ -563,6 +589,7 @@ ipcMain.handle('aj-import', async (e) => {
   try {
     const out = await attendance.importDocx(r.filePaths[0]);
     broadcast();
+    syncAttendanceSoon();
     return out;
   } catch (err) {
     return { ok: false, message: `Не удалось прочитать документ: ${err.message}` };
@@ -714,6 +741,9 @@ app.whenReady().then(() => {
 
   runSync();
   setInterval(runSync, SYNC_EVERY_MS);
+  // посещаемость: отметки с телефона приходят через Google Диск
+  syncAttendance();
+  setInterval(syncAttendance, 60 * 1000);
   updater.start(() => broadcast());
   digest.start({
     isEnabled: () => !SMOKE && store.get('gradeAlerts', true),

@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('api', {
   openAttestation: () => ipcRenderer.invoke('open-attestation'),
   openAttendance: () => ipcRenderer.invoke('open-attendance'),
   ajLoad: () => ipcRenderer.invoke('aj-load'),
+  ajSyncNow: () => ipcRenderer.invoke('aj-sync-now'),
+  onAjSynced: (cb) => ipcRenderer.on('aj-synced', (_e, data) => cb(data)),
   ajSave: (j) => ipcRenderer.invoke('aj-save', j),
   ajImport: () => ipcRenderer.invoke('aj-import'),
   ajExport: (month, name) => ipcRenderer.invoke('aj-export', month, name),

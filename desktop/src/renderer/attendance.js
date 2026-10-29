@@ -198,7 +198,7 @@ function editCard(c) {
   const name = el('input');
   name.value = c.name;
   name.addEventListener('change', async () => {
-    c.name = name.value.trim() || c.name;
+    T.rename(c, name.value.trim() || c.name);
     await persist();
     render();
   });
@@ -216,7 +216,7 @@ function editCard(c) {
     const input = el('input');
     input.value = s.name;
     input.addEventListener('change', async () => {
-      s.name = T.fixName(input.value) || s.name;
+      T.rename(s, T.fixName(input.value) || s.name);
       await persist();
       render();
     });
@@ -250,7 +250,7 @@ function editCard(c) {
 function renderClasses() {
   const box = $('classes');
   box.textContent = '';
-  if (!journal.classes.length && !editing) {
+  if (!T.sortedClasses(journal).length && !editing) {
     const card = el('div', 'card empty');
     card.append(el('h2', '', 'Журнал пока пуст'));
     card.append(el('p', 'muted', 'Загрузите списки учащихся из документа Word (таблицы «№ | ФИО» с заголовком «Список учащихся N класса») или добавьте классы вручную.'));
@@ -290,14 +290,15 @@ function renderClasses() {
     head.append(el('h2', '', c.name));
     let total = 0;
     let invalid = 0;
-    for (const s of c.students) {
+    const students = T.sortedStudents(c);
+    for (const s of students) {
       const st = T.monthStats(journal, month, s.id);
       total += st.total;
       invalid += st.invalid;
     }
-    head.append(el('span', 'stat', `${c.students.length} уч. · пропусков за месяц: ${total}${invalid ? `, без уважительной причины: ${invalid}` : ''}`));
+    head.append(el('span', 'stat', `${students.length} уч. · пропусков за месяц: ${total}${invalid ? `, без уважительной причины: ${invalid}` : ''}`));
     card.append(head);
-    if (c.students.length) card.append(classTable(c, cols));
+    if (students.length) card.append(classTable(c, cols));
     else card.append(el('div', 'muted small', 'Нет учеников — нажмите «Изменить списки».'));
     box.append(card);
   }
@@ -311,7 +312,7 @@ function render() {
   renderClasses();
   $('edit').textContent = editing ? 'Готово' : 'Изменить списки';
   $('edit').classList.toggle('primary', editing);
-  $('export').disabled = !journal.classes.length;
+  $('export').disabled = !T.sortedClasses(journal).length;
 }
 
 async function importWord() {
@@ -339,8 +340,40 @@ $('export').addEventListener('click', async () => {
   message(r.ok ? `Сохранено: ${r.file}` : r.message, !r.ok);
 });
 
-window.api.ajLoad().then((j) => {
-  journal = T.normalize(j);
+function renderSync(s) {
+  const box = $('sync');
+  if (!s || s.state === 'never') {
+    box.textContent = 'Синхронизация с телефоном…';
+    box.style.color = 'var(--muted)';
+    return;
+  }
+  const at = new Date(s.at);
+  const hm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+  box.textContent = s.state === 'ok' ? `Синхронизировано с телефоном через Google Диск · ${hm}` : s.message;
+  box.style.color = s.state === 'ok' ? 'var(--green)' : 'var(--red)';
+}
+
+$('syncNow').addEventListener('click', async () => {
+  $('syncNow').disabled = true;
+  const r = await window.api.ajSyncNow();
+  $('syncNow').disabled = false;
+  journal = T.normalize(r.journal);
+  render();
+  renderSync(r.status);
+});
+
+// пришли отметки с телефона — перерисовать, но не мешать, пока открыто меню или правятся списки
+window.api.onAjSynced((r) => {
+  renderSync(r.status);
+  if (r.journal && !pop && !editing) {
+    journal = T.normalize(r.journal);
+    render();
+  }
+});
+
+window.api.ajLoad().then((r) => {
+  journal = T.normalize(r.journal);
   month = T.defaultMonth(todayIso());
   render();
+  renderSync(r.status);
 });

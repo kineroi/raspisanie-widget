@@ -29,7 +29,7 @@ public class AttendanceTest {
     }
 
     @Test
-    public void schoolDays() {
+    public void schoolDays() throws Exception {
         JSONObject j = Attendance.empty();
         List<String> nov = Attendance.schoolDays(j, "2026-11");
         assertEquals("2026-11-02", nov.get(0));
@@ -46,7 +46,11 @@ public class AttendanceTest {
         Attendance.setSchoolDay(j, "2026-11-06", false);
         assertFalse(Attendance.isSchoolDay(j, "2026-11-06"));
         Attendance.setSchoolDay(j, "2026-11-06", true);
-        assertEquals(0, j.optJSONArray("offDays").length());
+        assertTrue(Attendance.isSchoolDay(j, "2026-11-06"));
+        // старый вид журнала
+        JSONObject old = Attendance.normalize(new JSONObject("{\"offDays\":[\"2026-11-09\"],\"onDays\":[\"2026-11-07\"]}"));
+        assertFalse(Attendance.isSchoolDay(old, "2026-11-09"));
+        assertTrue(Attendance.isSchoolDay(old, "2026-11-07"));
         Attendance.setSchoolDay(j, "2026-12-16", true);
         assertTrue(Attendance.schoolDays(j, "2026-12").contains("2026-12-16"));
     }
@@ -66,9 +70,79 @@ public class AttendanceTest {
         assertEquals(1, st.invalid);
         Attendance.setMark(j, "2026-11-02", sid, "", null);
         assertNull(Attendance.getMark(j, "2026-11-02", sid));
-        assertFalse(j.optJSONObject("marks").has("2026-11-02"));
         Attendance.removeStudent(j, c, sid);
-        assertEquals(0, j.optJSONObject("marks").length());
+        assertEquals(0, Attendance.sortedStudents(c).size());
+    }
+
+    @Test
+    public void syncMerge() {
+        long[] now = {1000};
+        java.util.function.LongSupplier saved = Attendance.clock;
+        Attendance.clock = () -> now[0];
+        try {
+            JSONObject base = Attendance.empty();
+            JSONObject c = Attendance.addClass(base, "4 класс");
+            String a = Attendance.addStudent(c, "Иванов Иван").optString("id");
+            String b = Attendance.addStudent(c, "Петров Пётр").optString("id");
+            JSONObject pc = Attendance.merge(base, Attendance.empty());
+            JSONObject phone = Attendance.merge(base, Attendance.empty());
+
+            now[0] = 2000;
+            Attendance.setMark(pc, "2026-11-02", a, "sick", null);
+            Attendance.setMark(phone, "2026-11-02", b, "absent", null);
+            Attendance.setMark(phone, "2026-11-03", a, "free", null);
+            now[0] = 3000;
+            Attendance.setMark(pc, "2026-11-03", a, "", null);
+            Attendance.removeStudent(phone, null, b);
+            Attendance.setSchoolDay(pc, "2026-11-06", false);
+
+            JSONObject m1 = Attendance.merge(pc, phone), m2 = Attendance.merge(phone, pc);
+            assertTrue(Attendance.same(m1, m2));
+            assertEquals("sick", Attendance.getMark(m1, "2026-11-02", a).optString("r"));
+            assertNull(Attendance.getMark(m1, "2026-11-03", a));
+            List<JSONObject> st = Attendance.sortedStudents(Attendance.sortedClasses(m1).get(0));
+            assertEquals(1, st.size());
+            assertEquals("Иванов Иван", st.get(0).optString("name"));
+            assertFalse(Attendance.isSchoolDay(m1, "2026-11-06"));
+            assertTrue(Attendance.same(Attendance.merge(m1, m1), m1));
+        } finally {
+            Attendance.clock = saved;
+        }
+    }
+
+    @Test
+    public void syncDedupesListsImportedTwice() {
+        List<Attendance.Parsed> tpl = Arrays.asList(new Attendance.Parsed("4 класс", Arrays.asList("Иванов Иван", "Петров Пётр")));
+        JSONObject pc = Attendance.empty();
+        Attendance.importClasses(pc, tpl);
+        JSONObject phone = Attendance.empty();
+        Attendance.importClasses(phone, tpl);
+        Attendance.importClasses(phone, Arrays.asList(new Attendance.Parsed("5 класс", Arrays.asList("Сидоров Сидор"))));
+        String ivanPhone = Attendance.sortedStudents(Attendance.sortedClasses(phone).get(0)).get(0).optString("id");
+        Attendance.setMark(phone, "2026-11-02", ivanPhone, "sick", null);
+
+        JSONObject m = Attendance.merge(pc, phone);
+        List<JSONObject> classes = Attendance.sortedClasses(m);
+        assertEquals(2, classes.size());
+        List<JSONObject> four = Attendance.sortedStudents(classes.get(0));
+        assertEquals(2, four.size());
+        assertEquals("sick", Attendance.getMark(m, "2026-11-02", four.get(0).optString("id")).optString("r"));
+        JSONObject back = Attendance.merge(phone, m);
+        assertTrue(Attendance.same(Attendance.merge(m, back), back));
+        assertEquals(2, Attendance.sortedStudents(Attendance.sortedClasses(back).get(0)).size());
+    }
+
+    @Test
+    public void readsDesktopJournal() throws Exception {
+        // так журнал записывает программа на компьютере (JSON.stringify), школьный день по умолчанию — null
+        String pc = "{\"classes\":[{\"id\":\"c1\",\"name\":\"4 класс\",\"t\":5,\"students\":[{\"id\":\"s1\","
+                + "\"name\":\"Иванов Иван\",\"t\":5}]}],\"marks\":{\"2026-11-02\":{\"s1\":{\"r\":\"sick\",\"t\":6}}},"
+                + "\"days\":{\"2026-11-06\":{\"school\":null,\"t\":7},\"2026-11-09\":{\"school\":false,\"t\":7}}}";
+        JSONObject j = Attendance.merge(Attendance.empty(), new JSONObject(pc));
+        assertEquals("sick", Attendance.getMark(j, "2026-11-02", "s1").optString("r"));
+        assertTrue(Attendance.isSchoolDay(j, "2026-11-06"));
+        assertFalse(Attendance.isSchoolDay(j, "2026-11-09"));
+        assertTrue(Attendance.same(j, new JSONObject(pc)));
     }
 
     @Test

@@ -94,4 +94,4 @@ function save(file, meta) {
   }
 }
 
-module.exports = { settings, setRoot, classify, save, root };
+module.exports = { settings, setRoot, classify, save, root, findGoogleDrive };

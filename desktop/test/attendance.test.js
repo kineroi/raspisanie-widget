@@ -33,9 +33,13 @@ test('выходной и учебный день вручную', () => {
   const j = T.empty();
   T.setSchoolDay(j, '2026-11-06', false);
   assert.ok(!T.schoolDays(j, '2026-11').includes('2026-11-06'));
-  assert.deepEqual(j.offDays, ['2026-11-06']);
   T.setSchoolDay(j, '2026-11-06', true);
-  assert.deepEqual(j.offDays, []);
+  assert.ok(T.schoolDays(j, '2026-11').includes('2026-11-06'));
+  assert.equal(j.days['2026-11-06'].school, null, 'снова как обычно');
+  // старый вид журнала
+  const old = T.normalize({ classes: [], marks: {}, offDays: ['2026-11-09'], onDays: ['2026-11-07'] });
+  assert.ok(!T.isSchoolDay(old, '2026-11-09'));
+  assert.ok(T.isSchoolDay(old, '2026-11-07'));
   T.setSchoolDay(j, '2026-12-16', true);
   assert.ok(T.schoolDays(j, '2026-12').includes('2026-12-16'));
   assert.ok(T.monthColumns(j, '2026-12').some((c) => c.date === '2026-12-16' && c.school));
@@ -48,14 +52,69 @@ test('отметки и итоги месяца', () => {
   T.setMark(j, '2026-11-02', s.id, 'sick');
   T.setMark(j, '2026-11-03', s.id, 'absent');
   T.setMark(j, '2026-11-04', s.id, 'other', '  соревнования ');
-  assert.deepEqual(T.getMark(j, '2026-11-04', s.id), { r: 'other', note: 'соревнования' });
+  assert.equal(T.getMark(j, '2026-11-04', s.id).note, 'соревнования');
   assert.equal(T.markCode(T.getMark(j, '2026-11-03', s.id)), 'н');
   assert.deepEqual(T.monthStats(j, '2026-11', s.id), { total: 3, invalid: 1, by: { sick: 1, absent: 1, other: 1 } });
   T.setMark(j, '2026-11-02', s.id, '');
   assert.equal(T.getMark(j, '2026-11-02', s.id), null);
-  assert.ok(!j.marks['2026-11-02']);
   T.removeStudent(j, c, s.id);
-  assert.deepEqual(j.marks, {});
+  assert.equal(T.sortedStudents(c).length, 0);
+});
+
+test('синхронизация: объединение журналов компьютера и телефона', () => {
+  let now = 1000;
+  T.setClock(() => now);
+  try {
+    // общий журнал, который уже был на обоих устройствах
+    const base = T.empty();
+    const c = T.addClass(base, '4 класс');
+    const a = T.addStudent(c, 'Иванов Иван');
+    const b = T.addStudent(c, 'Петров Пётр');
+    const pc = T.merge(base, {});
+    const phone = T.merge(base, {});
+
+    now = 2000;
+    T.setMark(pc, '2026-11-02', a.id, 'sick');
+    T.setMark(phone, '2026-11-02', b.id, 'absent');
+    T.setMark(phone, '2026-11-03', a.id, 'free');
+    now = 3000;
+    T.setMark(pc, '2026-11-03', a.id, ''); // на компьютере позже исправили: был
+    T.removeStudent(phone, phone.classes[0], b.id);
+    T.setSchoolDay(pc, '2026-11-06', false);
+
+    const m1 = T.merge(pc, phone);
+    const m2 = T.merge(phone, pc);
+    assert.ok(T.same(m1, m2), 'порядок не важен');
+    assert.equal(T.getMark(m1, '2026-11-02', a.id).r, 'sick');
+    assert.equal(T.getMark(m1, '2026-11-03', a.id), null, 'побеждает более позднее');
+    assert.deepEqual(T.sortedStudents(T.sortedClasses(m1)[0]).map((s) => s.name), ['Иванов Иван'], 'удалённый не воскресает');
+    assert.ok(!T.isSchoolDay(m1, '2026-11-06'));
+    assert.ok(T.same(T.merge(m1, m1), m1), 'повторное объединение ничего не меняет');
+  } finally {
+    T.setClock(() => Date.now());
+  }
+});
+
+test('синхронизация: списки, загруженные на обоих устройствах, не задваиваются', () => {
+  const tpl = [{ name: '4 класс', students: ['Иванов Иван', 'Петров Пётр'] }];
+  const pc = T.empty();
+  T.importClasses(pc, tpl);
+  const phone = T.empty();
+  T.importClasses(phone, tpl);
+  T.importClasses(phone, [{ name: '5 класс', students: ['Сидоров Сидор'] }]);
+  const ivanPhone = T.sortedStudents(phone.classes[0]).find((s) => s.name === 'Иванов Иван');
+  T.setMark(phone, '2026-11-02', ivanPhone.id, 'sick');
+
+  const m = T.merge(pc, phone);
+  assert.deepEqual(T.sortedClasses(m).map((c) => c.name), ['4 класс', '5 класс']);
+  const four = T.sortedClasses(m)[0];
+  assert.deepEqual(T.sortedStudents(four).map((s) => s.name), ['Иванов Иван', 'Петров Пётр']);
+  const ivan = T.sortedStudents(four)[0];
+  assert.equal(T.getMark(m, '2026-11-02', ivan.id).r, 'sick', 'отметка перенесена на оставшегося');
+  // и с другой стороны получится то же самое
+  const back = T.merge(phone, m);
+  assert.ok(T.same(T.merge(m, back), back));
+  assert.equal(T.sortedStudents(T.sortedClasses(back)[0]).length, 2);
 });
 
 test('предупреждения: долго болеет и пропуски без уважительной причины', () => {
