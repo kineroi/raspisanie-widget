@@ -132,6 +132,8 @@ final class Ai {
         final String url;
         final Map<String, String> headers = new LinkedHashMap<>();
         final String body;
+        /** Сколько ждать ответа: с файлами нейросеть думает дольше. */
+        int timeout = 40000;
 
         Request(String url, String body) {
             this.url = url;
@@ -271,6 +273,130 @@ final class Ai {
         return Gemini.cleanup(sb.toString().replaceAll("(?s)<think>.*?</think>", ""));
     }
 
+    /** Файл для нейросети: тип (application/pdf, image/jpeg…) и содержимое в base64. */
+    static final class FilePart {
+        final String mime, data;
+
+        FilePart(String mime, String data) {
+            this.mime = mime;
+            this.data = data;
+        }
+    }
+
+    /** Сервисы «как у OpenAI» PDF не принимают — только картинки. */
+    static final int PDF_UNSUPPORTED = -2;
+
+    /** Запрос с файлами и своей подсказкой, ответ — объект JSON (как fileRequest в desktop/src/shared/ai.js). */
+    static Request fileRequest(Provider p, String key, String model, String system, String text, List<FilePart> files)
+            throws JSONException, Failure {
+        int maxTokens = 8192;
+        Request r;
+        if (GEMINI.equals(p.kind)) {
+            JSONArray parts = new JSONArray();
+            for (FilePart f : files) {
+                parts.put(new JSONObject().put("inline_data", new JSONObject().put("mime_type", f.mime).put("data", f.data)));
+            }
+            parts.put(new JSONObject().put("text", text));
+            JSONObject body = new JSONObject()
+                    .put("systemInstruction", new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", system))))
+                    .put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", parts)))
+                    .put("generationConfig", new JSONObject().put("temperature", 0.2).put("maxOutputTokens", maxTokens)
+                            .put("responseMimeType", "application/json"));
+            r = new Request(p.base + "/models/" + model + ":generateContent", body.toString());
+            r.headers.put("x-goog-api-key", key);
+        } else if (ANTHROPIC.equals(p.kind)) {
+            JSONArray content = new JSONArray();
+            for (FilePart f : files) {
+                String type = "application/pdf".equals(f.mime) ? "document" : "image";
+                content.put(new JSONObject().put("type", type).put("source", new JSONObject()
+                        .put("type", "base64").put("media_type", f.mime).put("data", f.data)));
+            }
+            content.put(new JSONObject().put("type", "text").put("text", text));
+            JSONObject body = new JSONObject()
+                    .put("model", model)
+                    .put("system", system)
+                    .put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", content)))
+                    .put("max_tokens", maxTokens)
+                    .put("temperature", 0.2);
+            r = new Request(p.base + "/messages", body.toString());
+            r.headers.put("x-api-key", key);
+            r.headers.put("anthropic-version", "2023-06-01");
+        } else {
+            for (FilePart f : files) if ("application/pdf".equals(f.mime)) throw new Failure(PDF_UNSUPPORTED, "pdf");
+            Object user = text;
+            if (!files.isEmpty()) {
+                JSONArray content = new JSONArray();
+                for (FilePart f : files) {
+                    content.put(new JSONObject().put("type", "image_url").put("image_url",
+                            new JSONObject().put("url", "data:" + f.mime + ";base64," + f.data)));
+                }
+                content.put(new JSONObject().put("type", "text").put("text", text));
+                user = content;
+            }
+            JSONObject body = new JSONObject()
+                    .put("model", model)
+                    .put("messages", new JSONArray()
+                            .put(new JSONObject().put("role", "system").put("content", system))
+                            .put(new JSONObject().put("role", "user").put("content", user)))
+                    .put("temperature", 0.2)
+                    .put("max_tokens", maxTokens);
+            r = new Request(p.base + "/chat/completions", body.toString());
+            r.headers.put("Authorization", "Bearer " + key);
+        }
+        r.timeout = 120000;
+        return r;
+    }
+
+    /** Текст ответа без чистки разметки (для JSON). */
+    static String rawText(Provider p, String body) throws JSONException {
+        JSONObject o = new JSONObject(body);
+        StringBuilder sb = new StringBuilder();
+        if (GEMINI.equals(p.kind)) {
+            JSONArray cands = o.optJSONArray("candidates");
+            JSONObject c = cands == null || cands.length() == 0 ? null : cands.optJSONObject(0);
+            JSONObject content = c == null ? null : c.optJSONObject("content");
+            JSONArray parts = content == null ? null : content.optJSONArray("parts");
+            for (int i = 0; parts != null && i < parts.length(); i++) {
+                JSONObject x = parts.optJSONObject(i);
+                if (x != null && !x.optBoolean("thought")) sb.append(x.optString("text", ""));
+            }
+            return sb.toString();
+        }
+        if (ANTHROPIC.equals(p.kind)) {
+            JSONArray parts = o.optJSONArray("content");
+            for (int i = 0; parts != null && i < parts.length(); i++) {
+                JSONObject c = parts.optJSONObject(i);
+                if (c != null && "text".equals(c.optString("type"))) sb.append(c.optString("text", ""));
+            }
+            return sb.toString();
+        }
+        JSONArray choices = o.optJSONArray("choices");
+        JSONObject msg = choices == null || choices.length() == 0 ? null : choices.getJSONObject(0).optJSONObject("message");
+        Object content = msg == null ? null : msg.opt("content");
+        if (content instanceof JSONArray) {
+            JSONArray arr = (JSONArray) content;
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject c = arr.optJSONObject(i);
+                if (c != null) sb.append(c.optString("text", ""));
+            }
+        } else if (content instanceof String) {
+            sb.append((String) content);
+        }
+        return sb.toString();
+    }
+
+    /** Достать объект JSON из ответа (модели иногда оборачивают его в текст или ```json). */
+    static JSONObject parseJson(String text) {
+        String t = text == null ? "" : text;
+        int from = t.indexOf('{'), to = t.lastIndexOf('}');
+        if (from < 0 || to <= from) return null;
+        try {
+            return new JSONObject(t.substring(from, to + 1));
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
     /** Какие модели пробовать по очереди (у Gemini — запасная, если кончился дневной лимит). */
     static List<String> modelsToTry(Provider p, String model) {
         List<String> list = new ArrayList<>();
@@ -359,6 +485,25 @@ final class Ai {
         throw last != null ? last : new Failure(0, "Нет ответа");
     }
 
+    /** Запрос с файлами, ответ — объект JSON; у Gemini при лимите пробуем запасные модели. */
+    static JSONObject completeJson(Provider p, String key, String model, String system, String text,
+                                   List<FilePart> files) throws IOException {
+        Failure last = null;
+        for (String m : modelsToTry(p, model)) {
+            try {
+                JSONObject o = parseJson(rawText(p, http(fileRequest(p, key, m, system, text, files))));
+                if (o != null) return o;
+                last = new Failure(0, "Непонятный ответ");
+            } catch (Failure f) {
+                last = f;
+                if (f.code != 404 && f.code != 429 && f.code != 503) throw f;
+            } catch (JSONException e) {
+                last = new Failure(0, "Непонятный ответ");
+            }
+        }
+        throw last != null ? last : new Failure(0, "Нет ответа");
+    }
+
     static String explain(IOException e, Provider p) {
         String name = p.name;
         if (e instanceof Failure) {
@@ -388,7 +533,7 @@ final class Ai {
         try {
             c.setRequestMethod(r.body == null ? "GET" : "POST");
             c.setConnectTimeout(15000);
-            c.setReadTimeout(40000);
+            c.setReadTimeout(r.timeout);
             for (Map.Entry<String, String> h : r.headers.entrySet()) c.setRequestProperty(h.getKey(), h.getValue());
             if (r.body != null) {
                 c.setDoOutput(true);

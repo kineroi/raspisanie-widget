@@ -427,6 +427,10 @@ public class MainActivity extends Activity {
         }
         tiles.addView(grades);
 
+        tiles.addView(tile(R.color.a_primary, R.color.a_primary_soft, R.drawable.ic_app_medal,
+                "Аттестация", "грамоты на Диск",
+                () -> startActivity(new Intent(this, AttestationActivity.class))));
+
         AppWidgetManager mgr = AppWidgetManager.getInstance(this);
         if (mgr.isRequestPinAppWidgetSupported()) {
             tiles.addView(tile(R.color.a_green, R.color.a_green_soft, R.drawable.ic_app_home,
