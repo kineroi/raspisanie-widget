@@ -25,7 +25,10 @@
       background: transparent; color: var(--muted); display: grid; place-items: center;
     }
     .nav:hover { background: var(--primary-soft); color: var(--primary); }
-    .nav.active { background: var(--primary-soft); color: var(--primary); }
+    .nav.active, .nav.active:hover { background: var(--primary); color: var(--on-primary); }
+    .nav:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    /* Раздел «Неделя»: только расписание на всю ширину */
+    .week-only .today-head, .week-only .tiles, .week-only .col-right { display: none; }
     .nav:disabled { opacity: .35; }
     .nav svg, .icon-btn svg { width: 24px; height: 24px; }
 
@@ -176,7 +179,7 @@
 
         <section id="viewHome" class="content">
           <div class="col-left">
-            <h2>Сегодня</h2>
+            <h2 class="today-head">Сегодня</h2>
             <div class="tiles" id="tiles"></div>
             <div class="card week" id="weekCard">
               <div class="week-head">
