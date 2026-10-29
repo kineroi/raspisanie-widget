@@ -275,9 +275,16 @@ final class Attestation {
     }
 
     /** Ошибка скрипта, понятная учителю. */
-    static final class DriveError extends IOException {
+    static class DriveError extends IOException {
         DriveError(String message) {
             super(message);
+        }
+    }
+
+    /** Файл на Диске успели изменить с другого устройства — надо забрать новый и объединить. */
+    static final class Conflict extends DriveError {
+        Conflict() {
+            super("conflict");
         }
     }
 
@@ -304,6 +311,12 @@ final class Attestation {
         }
         if (o.optBoolean("ok")) return o;
         String err = o.optString("error", "");
+        if ("conflict".equals(err)) throw new Conflict();
+        if ("неизвестное действие".equals(err)) {
+            throw new DriveError("Скрипт Google устарел. Откройте его на script.google.com, замените код новым "
+                    + "(кнопка «Скопировать код» на экране «Аттестация») и выберите «Развернуть» → «Управление "
+                    + "развертываниями» → «Изменить» → «Новая версия».");
+        }
         if ("secret".equals(err)) {
             throw new DriveError("Скрипт уже подключён к другому телефону. В скрипте откройте «Настройки проекта» → "
                     + "«Свойства скрипта», удалите SECRET и подключите снова.");

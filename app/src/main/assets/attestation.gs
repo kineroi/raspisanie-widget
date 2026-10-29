@@ -1,6 +1,7 @@
 /**
  * «Моё расписание» → Google Диск: кладёт документы для аттестации в папку «Аттестация»
  * (ту же, что программа на компьютере) и сама создаёт подпапки по разделам и уровням.
+ * Ещё хранит общий журнал посещаемости («Моё расписание / посещаемость.json») для телефона и компьютера.
  *
  * Как подключить (один раз):
  * 1. Откройте https://script.google.com → «Новый проект», удалите всё в редакторе и вставьте этот текст.
@@ -28,6 +29,28 @@ function doPost(e) {
     if (req.action === 'ping') {
       return reply({ ok: true, root: rootName });
     }
+    if (req.action === 'journal-get') {
+      var jf = journalFile(req);
+      var text = jf ? jf.getBlob().getDataAsString('UTF-8') : '';
+      return reply({ ok: true, data: text, etag: digest(text) });
+    }
+    if (req.action === 'journal-put') {
+      var jlock = LockService.getScriptLock();
+      jlock.waitLock(30000);
+      try {
+        var cur = journalFile(req);
+        var curText = cur ? cur.getBlob().getDataAsString('UTF-8') : '';
+        // журнал успели изменить с другого устройства — телефон заберёт новый и объединит
+        if (digest(curText) !== String(req.etag || '')) return reply({ ok: false, error: 'conflict' });
+        var data = String(req.data || '');
+        if (cur) cur.setContent(data);
+        else folder(DriveApp.getRootFolder(), clean(req.folder) || 'Моё расписание')
+          .createFile(clean(req.name) || 'посещаемость.json', data, 'application/json');
+        return reply({ ok: true, etag: digest(data) });
+      } finally {
+        jlock.releaseLock();
+      }
+    }
     if (req.action === 'save') {
       var lock = LockService.getScriptLock();
       lock.waitLock(30000);
@@ -51,6 +74,24 @@ function doPost(e) {
   } catch (err) {
     return reply({ ok: false, error: String(err && err.message || err) });
   }
+}
+
+/** Файл журнала посещаемости (самый свежий, если их несколько) или null. */
+function journalFile(req) {
+  var dir = folder(DriveApp.getRootFolder(), clean(req.folder) || 'Моё расписание');
+  var it = dir.getFilesByName(clean(req.name) || 'посещаемость.json');
+  var best = null;
+  while (it.hasNext()) {
+    var f = it.next();
+    if (!f.isTrashed() && (!best || f.getLastUpdated() > best.getLastUpdated())) best = f;
+  }
+  return best;
+}
+
+/** Отпечаток содержимого: пустой файл — пустая строка. */
+function digest(text) {
+  if (!text) return '';
+  return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text, Utilities.Charset.UTF_8));
 }
 
 /** Папка с таким именем внутри parent (не из корзины) или новая. */

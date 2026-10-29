@@ -13,12 +13,16 @@ import java.text.Collator;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -27,8 +31,10 @@ import java.util.zip.ZipOutputStream;
 /**
  * Журнал посещаемости: учебные дни, отметки, предупреждения, выгрузка в Word.
  * Журнал — объект JSON того же вида, что в программе для Windows (desktop/src/shared/attendance.js):
- * {classes: [{id, name, students: [{id, name}]}], marks: {"2026-11-02": {studentId: {r, note}}}, offDays, onDays}.
- * ФИО учеников хранятся только на телефоне и никуда не отправляются — ни в нейросеть, ни в BilimClass.
+ * {classes: [{id, name, t, deleted?, mergedInto?, students: [{id, name, t, …}]}],
+ *  marks: {"2026-11-02": {studentId: {r, note?, t}}}, days: {"2026-11-06": {school, t}}}.
+ * t — время изменения: журналы телефона и компьютера объединяются по элементам (merge), побеждает более позднее.
+ * ФИО учеников не отправляются ни в нейросеть, ни в BilimClass — только в файл на Google Диске учителя.
  */
 final class Attendance {
 
@@ -78,22 +84,69 @@ final class Attendance {
         return null;
     }
 
+    /** Часы (в тестах подменяются). */
+    static LongSupplier clock = System::currentTimeMillis;
+
     static JSONObject empty() {
         return normalize(new JSONObject());
     }
 
-    /** Сохранённый журнал → журнал с нужными полями. */
+    private static List<String> keys(JSONObject o) {
+        List<String> out = new ArrayList<>();
+        if (o == null) return out;
+        for (Iterator<String> it = o.keys(); it.hasNext(); ) out.add(it.next());
+        return out;
+    }
+
+    /**
+     * Сохранённый журнал → журнал с нужными полями. Старый вид (offDays/onDays, без времени изменений)
+     * переводится в новый с временем 0 — любое новое изменение его перекроет.
+     */
     static JSONObject normalize(JSONObject o) {
         try {
             if (o == null) o = new JSONObject();
-            if (o.optJSONArray("classes") == null) o.put("classes", new JSONArray());
-            if (o.optJSONObject("marks") == null) o.put("marks", new JSONObject());
-            if (o.optJSONArray("offDays") == null) o.put("offDays", new JSONArray());
-            if (o.optJSONArray("onDays") == null) o.put("onDays", new JSONArray());
+            JSONArray classes = o.optJSONArray("classes");
+            if (classes == null) o.put("classes", classes = new JSONArray());
+            for (int i = 0; i < classes.length(); i++) {
+                JSONObject c = classes.optJSONObject(i);
+                if (c == null) continue;
+                if (!c.has("t")) c.put("t", 0L);
+                JSONArray st = c.optJSONArray("students");
+                if (st == null) c.put("students", st = new JSONArray());
+                for (int k = 0; k < st.length(); k++) {
+                    JSONObject s = st.optJSONObject(k);
+                    if (s != null && !s.has("t")) s.put("t", 0L);
+                }
+            }
+            JSONObject marks = o.optJSONObject("marks");
+            if (marks == null) o.put("marks", marks = new JSONObject());
+            for (String d : keys(marks)) {
+                JSONObject day = marks.optJSONObject(d);
+                for (String sid : keys(day)) {
+                    JSONObject m = day.optJSONObject(sid);
+                    if (m != null && !m.has("t")) m.put("t", 0L);
+                }
+            }
+            JSONObject days = o.optJSONObject("days");
+            if (days == null) o.put("days", days = new JSONObject());
+            JSONArray off = o.optJSONArray("offDays"), on = o.optJSONArray("onDays");
+            for (int i = 0; off != null && i < off.length(); i++) {
+                if (!days.has(off.optString(i))) days.put(off.optString(i), new JSONObject().put("school", false).put("t", 0L));
+            }
+            for (int i = 0; on != null && i < on.length(); i++) {
+                if (!days.has(on.optString(i))) days.put(on.optString(i), new JSONObject().put("school", true).put("t", 0L));
+            }
+            o.remove("offDays");
+            o.remove("onDays");
         } catch (JSONException ignored) {
             // ключи — обычные строки, ошибки не будет
         }
         return o;
+    }
+
+    /** Не удалён и не слит с другим. */
+    static boolean live(JSONObject x) {
+        return x != null && !x.optBoolean("deleted") && x.optString("mergedInto", "").isEmpty();
     }
 
     // ---------- Хранение (только на телефоне) ----------
@@ -109,19 +162,66 @@ final class Attendance {
     }
 
     static void save(Context c, JSONObject j) {
-        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(K_JOURNAL, j.toString()).apply();
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(K_JOURNAL, j.toString()).commit();
+    }
+
+    /** Сохранить изменения с экрана: объединяем с сохранённым (вдруг уже пришли отметки с компьютера). */
+    static synchronized JSONObject commit(Context c, JSONObject j) {
+        JSONObject merged = merge(load(c), j);
+        save(c, merged);
+        return merged;
+    }
+
+    // ---------- Синхронизация с компьютером через Google Диск (скрипт из assets/attestation.gs) ----------
+
+    static final String SYNC_FOLDER = "Моё расписание", SYNC_FILE = "посещаемость.json";
+
+    private static JSONObject request(String action, String secret) throws JSONException {
+        return new JSONObject().put("action", action).put("secret", secret).put("folder", SYNC_FOLDER).put("name", SYNC_FILE);
+    }
+
+    /**
+     * Обменяться отметками с компьютером (НЕ из главного потока). Возвращает true, если на телефон пришло новое.
+     * Ошибки — понятным текстом (Attestation.DriveError).
+     */
+    static boolean sync(Context c) throws IOException {
+        String url = Attestation.scriptUrl(c);
+        if (url.isEmpty()) throw new Attestation.DriveError("Google Диск не подключён.");
+        String secret = Attestation.secret(c);
+        try {
+            for (int attempt = 0; attempt < 3; attempt++) {
+                JSONObject r = Attestation.call(url, request("journal-get", secret));
+                String data = r.optString("data", "");
+                JSONObject remote;
+                try {
+                    remote = data.isEmpty() ? empty() : normalize(new JSONObject(data));
+                } catch (JSONException e) {
+                    throw new Attestation.DriveError("Файл журнала на Google Диске не читается.");
+                }
+                JSONObject merged;
+                boolean changed;
+                synchronized (Attendance.class) {
+                    JSONObject local = load(c);
+                    merged = merge(local, remote);
+                    changed = !same(merged, local);
+                    if (changed) save(c, merged);
+                }
+                if (!data.isEmpty() && same(merged, remote)) return changed;
+                try {
+                    Attestation.call(url, request("journal-put", secret).put("etag", r.optString("etag", ""))
+                            .put("data", merged.toString()));
+                    return changed;
+                } catch (Attestation.Conflict e) {
+                    // журнал только что изменили на компьютере — заберём и объединим ещё раз
+                }
+            }
+        } catch (JSONException e) {
+            throw new Attestation.DriveError("Не удалось подготовить запрос.");
+        }
+        throw new Attestation.DriveError("Журнал одновременно меняют на другом устройстве — попробуйте ещё раз.");
     }
 
     // ---------- Даты ----------
-
-    private static boolean has(JSONArray a, String v) {
-        for (int i = 0; i < a.length(); i++) if (v.equals(a.optString(i))) return true;
-        return false;
-    }
-
-    private static void removeValue(JSONArray a, String v) {
-        for (int i = a.length() - 1; i >= 0; i--) if (v.equals(a.optString(i))) a.remove(i);
-    }
 
     static boolean inQuarter(String iso) {
         for (String[] q : QUARTERS) if (iso.compareTo(q[0]) >= 0 && iso.compareTo(q[1]) <= 0) return true;
@@ -139,17 +239,19 @@ final class Attendance {
     }
 
     static boolean isSchoolDay(JSONObject j, String iso) {
-        if (has(j.optJSONArray("onDays"), iso)) return true;
-        if (has(j.optJSONArray("offDays"), iso)) return false;
-        return defaultSchoolDay(iso);
+        JSONObject e = j.optJSONObject("days").optJSONObject(iso);
+        Object school = e == null ? null : e.opt("school");
+        return school instanceof Boolean ? (Boolean) school : defaultSchoolDay(iso);
     }
 
     /** Сделать день учебным или выходным (перенос праздника, карантин). */
     static void setSchoolDay(JSONObject j, String iso, boolean on) {
-        JSONArray onDays = j.optJSONArray("onDays"), offDays = j.optJSONArray("offDays");
-        removeValue(onDays, iso);
-        removeValue(offDays, iso);
-        if (on != defaultSchoolDay(iso)) (on ? onDays : offDays).put(iso);
+        try {
+            j.optJSONObject("days").put(iso, new JSONObject()
+                    .put("school", on == defaultSchoolDay(iso) ? JSONObject.NULL : on).put("t", clock.getAsLong()));
+        } catch (JSONException ignored) {
+            // ключи — обычные строки
+        }
     }
 
     static List<String> months() {
@@ -190,10 +292,11 @@ final class Attendance {
 
     static JSONObject getMark(JSONObject j, String iso, String sid) {
         JSONObject day = j.optJSONObject("marks").optJSONObject(iso);
-        return day == null ? null : day.optJSONObject(sid);
+        JSONObject m = day == null ? null : day.optJSONObject(sid);
+        return m != null && reasonById(m.optString("r")) != null ? m : null;
     }
 
-    /** reason = "" — был на уроках. Для «Другое» — своя запись. */
+    /** reason = "" — был на уроках (запись остаётся с временем, чтобы при синхронизации отметка не вернулась). */
     static void setMark(JSONObject j, String iso, String sid, String reason, String note) {
         try {
             JSONObject marks = j.optJSONObject("marks");
@@ -202,15 +305,11 @@ final class Attendance {
                 day = new JSONObject();
                 marks.put(iso, day);
             }
-            if (reason == null || reasonById(reason) == null) {
-                day.remove(sid);
-            } else {
-                JSONObject m = new JSONObject().put("r", reason);
-                String t = note == null ? "" : note.trim();
-                if ("other".equals(reason) && !t.isEmpty()) m.put("note", t);
-                day.put(sid, m);
-            }
-            if (day.length() == 0) marks.remove(iso);
+            JSONObject m = new JSONObject().put("r", reason != null && reasonById(reason) != null ? reason : "")
+                    .put("t", clock.getAsLong());
+            String t = note == null ? "" : note.trim();
+            if ("other".equals(reason) && !t.isEmpty()) m.put("note", t);
+            day.put(sid, m);
         } catch (JSONException ignored) {
             // ключи — обычные строки
         }
@@ -291,7 +390,7 @@ final class Attendance {
     static List<JSONObject> sortedClasses(JSONObject j) {
         List<JSONObject> out = new ArrayList<>();
         JSONArray a = j.optJSONArray("classes");
-        for (int i = 0; i < a.length(); i++) out.add(a.optJSONObject(i));
+        for (int i = 0; i < a.length(); i++) if (live(a.optJSONObject(i))) out.add(a.optJSONObject(i));
         Collator col = Collator.getInstance(RU);
         out.sort((x, y) -> {
             int d = classNumber(x) - classNumber(y);
@@ -303,7 +402,7 @@ final class Attendance {
     static List<JSONObject> sortedStudents(JSONObject cls) {
         List<JSONObject> out = new ArrayList<>();
         JSONArray a = cls.optJSONArray("students");
-        for (int i = 0; a != null && i < a.length(); i++) out.add(a.optJSONObject(i));
+        for (int i = 0; a != null && i < a.length(); i++) if (live(a.optJSONObject(i))) out.add(a.optJSONObject(i));
         Collator col = Collator.getInstance(RU);
         out.sort((x, y) -> col.compare(x.optString("name"), y.optString("name")));
         return out;
@@ -317,7 +416,7 @@ final class Attendance {
         try {
             String n = name == null ? "" : name.trim();
             JSONObject c = new JSONObject().put("id", newId()).put("name", n.isEmpty() ? "Новый класс" : n)
-                    .put("students", new JSONArray());
+                    .put("t", clock.getAsLong()).put("students", new JSONArray());
             j.optJSONArray("classes").put(c);
             return c;
         } catch (JSONException e) {
@@ -327,7 +426,7 @@ final class Attendance {
 
     static JSONObject addStudent(JSONObject cls, String name) {
         try {
-            JSONObject s = new JSONObject().put("id", newId()).put("name", fixName(name));
+            JSONObject s = new JSONObject().put("id", newId()).put("name", fixName(name)).put("t", clock.getAsLong());
             cls.optJSONArray("students").put(s);
             return s;
         } catch (JSONException e) {
@@ -335,29 +434,203 @@ final class Attendance {
         }
     }
 
-    /** Удалить ученика вместе с его отметками. */
+    private static void touch(JSONObject item, String key, Object value) {
+        try {
+            item.put(key, value).put("t", clock.getAsLong());
+        } catch (JSONException ignored) {
+            // ключи — обычные строки
+        }
+    }
+
+    /** Переименовать ученика или класс. */
+    static void rename(JSONObject item, String name) {
+        touch(item, "name", name);
+    }
+
+    /** Удалить ученика (его отметки больше нигде не показываются). Ищем во всех классах журнала j. */
     static void removeStudent(JSONObject j, JSONObject cls, String sid) {
-        JSONArray a = cls.optJSONArray("students");
-        for (int i = a.length() - 1; i >= 0; i--) if (sid.equals(a.optJSONObject(i).optString("id"))) a.remove(i);
-        JSONObject marks = j.optJSONObject("marks");
-        List<String> dates = new ArrayList<>();
-        for (Iterator<String> it = marks.keys(); it.hasNext(); ) dates.add(it.next());
-        for (String d : dates) {
-            JSONObject day = marks.optJSONObject(d);
-            if (day == null) continue;
-            day.remove(sid);
-            if (day.length() == 0) marks.remove(d);
+        for (JSONObject c : list(j.optJSONArray("classes"))) {
+            for (JSONObject s : list(c.optJSONArray("students"))) if (sid.equals(s.optString("id"))) touch(s, "deleted", true);
         }
     }
 
     static void removeClass(JSONObject j, String cid) {
         JSONArray a = j.optJSONArray("classes");
-        for (int i = a.length() - 1; i >= 0; i--) {
-            JSONObject c = a.optJSONObject(i);
-            if (!cid.equals(c.optString("id"))) continue;
-            for (JSONObject s : sortedStudents(c)) removeStudent(j, c, s.optString("id"));
-            a.remove(i);
+        for (int i = 0; i < a.length(); i++) if (cid.equals(a.optJSONObject(i).optString("id"))) touch(a.optJSONObject(i), "deleted", true);
+    }
+
+    // ---------- Синхронизация (как merge в desktop/src/shared/attendance.js) ----------
+
+    private static String str(JSONObject x, String key) {
+        Object v = x.opt(key);
+        return v == null || v == JSONObject.NULL ? "" : String.valueOf(v);
+    }
+
+    /** Подпись элемента: чем решать, если время изменения совпало до миллисекунды. */
+    private static String sig(JSONObject x) {
+        return str(x, "r") + "|" + str(x, "note") + "|" + str(x, "name") + "|" + str(x, "deleted") + "|"
+                + str(x, "mergedInto") + "|" + str(x, "school");
+    }
+
+    /** Из двух версий одного элемента — более позднюю. */
+    static JSONObject newer(JSONObject a, JSONObject b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        long ta = a.optLong("t"), tb = b.optLong("t");
+        if (ta != tb) return tb > ta ? b : a;
+        return sig(b).compareTo(sig(a)) > 0 ? b : a;
+    }
+
+    private static JSONObject copy(JSONObject o) {
+        try {
+            return new JSONObject(o == null ? "{}" : o.toString());
+        } catch (JSONException e) {
+            return new JSONObject();
         }
+    }
+
+    /** Объединить два журнала (порядок не важен). */
+    static JSONObject merge(JSONObject a, JSONObject b) {
+        JSONObject x = normalize(copy(a)), y = normalize(copy(b));
+        try {
+            Map<String, JSONObject> heads = new TreeMap<>();
+            Map<String, Map<String, JSONObject>> students = new HashMap<>();
+            for (JSONObject src : new JSONObject[]{x, y}) {
+                JSONArray cl = src.optJSONArray("classes");
+                for (int i = 0; i < cl.length(); i++) {
+                    JSONObject c = cl.optJSONObject(i);
+                    if (c == null) continue;
+                    String id = c.optString("id");
+                    heads.put(id, newer(heads.get(id), c));
+                    Map<String, JSONObject> st = students.get(id);
+                    if (st == null) students.put(id, st = new TreeMap<>());
+                    JSONArray sa = c.optJSONArray("students");
+                    for (int k = 0; k < sa.length(); k++) {
+                        JSONObject s = sa.optJSONObject(k);
+                        if (s != null) st.put(s.optString("id"), newer(st.get(s.optString("id")), s));
+                    }
+                }
+            }
+            JSONArray classes = new JSONArray();
+            for (Map.Entry<String, JSONObject> e : heads.entrySet()) {
+                JSONObject c = copy(e.getValue());
+                JSONArray sa = new JSONArray();
+                for (JSONObject s : students.get(e.getKey()).values()) sa.put(copy(s));
+                c.put("students", sa);
+                classes.put(c);
+            }
+            JSONObject marks = new JSONObject(), days = new JSONObject();
+            for (JSONObject src : new JSONObject[]{x, y}) {
+                JSONObject sm = src.optJSONObject("marks");
+                for (String d : keys(sm)) {
+                    JSONObject out = marks.optJSONObject(d);
+                    if (out == null) marks.put(d, out = new JSONObject());
+                    JSONObject day = sm.optJSONObject(d);
+                    for (String sid : keys(day)) out.put(sid, newer(out.optJSONObject(sid), day.optJSONObject(sid)));
+                }
+                JSONObject sd = src.optJSONObject("days");
+                for (String d : keys(sd)) days.put(d, newer(days.optJSONObject(d), sd.optJSONObject(d)));
+            }
+            JSONObject j = new JSONObject().put("classes", classes).put("marks", marks).put("days", days);
+            dedupe(j);
+            return j;
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static List<JSONObject> list(JSONArray a) {
+        List<JSONObject> out = new ArrayList<>();
+        for (int i = 0; a != null && i < a.length(); i++) if (a.optJSONObject(i) != null) out.add(a.optJSONObject(i));
+        return out;
+    }
+
+    private static String lower(String s) {
+        return (s == null ? "" : s).trim().toLowerCase(RU);
+    }
+
+    /**
+     * Одинаковые классы и ученики (списки загружали и на компьютере, и на телефоне) сливаются в один:
+     * остаётся тот, у кого меньше id, у другого — mergedInto. Отметки переносятся.
+     */
+    private static void dedupe(JSONObject j) throws JSONException {
+        List<JSONObject> classes = list(j.optJSONArray("classes"));
+        Map<String, List<JSONObject>> groups = new LinkedHashMap<>();
+        for (JSONObject c : classes) {
+            if (!live(c)) continue;
+            String k = lower(c.optString("name"));
+            if (!groups.containsKey(k)) groups.put(k, new ArrayList<>());
+            groups.get(k).add(c);
+        }
+        for (List<JSONObject> g : groups.values()) {
+            g.sort((p, q) -> p.optString("id").compareTo(q.optString("id")));
+            for (int i = 1; i < g.size(); i++) touch(g.get(i), "mergedInto", g.get(0).optString("id"));
+        }
+        Map<String, JSONObject> byId = new HashMap<>();
+        for (JSONObject c : classes) byId.put(c.optString("id"), c);
+        for (JSONObject c : classes) {
+            if (str(c, "mergedInto").isEmpty()) continue;
+            JSONObject to = c;
+            for (int i = 0; to != null && !str(to, "mergedInto").isEmpty() && i < 20; i++) to = byId.get(str(to, "mergedInto"));
+            if (to == null || !live(to)) continue;
+            JSONArray target = to.optJSONArray("students");
+            for (JSONObject s : list(c.optJSONArray("students"))) {
+                int found = -1;
+                for (int i = 0; i < target.length(); i++) if (s.optString("id").equals(target.optJSONObject(i).optString("id"))) found = i;
+                if (found < 0) target.put(s);
+                else target.put(found, newer(target.optJSONObject(found), s));
+            }
+            c.put("students", new JSONArray());
+        }
+        Map<String, String> moved = new HashMap<>();
+        for (JSONObject c : classes) {
+            if (!live(c)) continue;
+            List<JSONObject> st = list(c.optJSONArray("students"));
+            st.sort((p, q) -> p.optString("id").compareTo(q.optString("id")));
+            Map<String, String> names = new HashMap<>();
+            for (JSONObject s : st) {
+                if (!live(s)) continue;
+                String k = lower(s.optString("name"));
+                if (names.containsKey(k)) touch(s, "mergedInto", names.get(k));
+                else names.put(k, s.optString("id"));
+            }
+            for (JSONObject s : st) if (!str(s, "mergedInto").isEmpty()) moved.put(s.optString("id"), str(s, "mergedInto"));
+        }
+        JSONObject marks = j.optJSONObject("marks");
+        for (String d : keys(marks)) {
+            JSONObject day = marks.optJSONObject(d);
+            for (Map.Entry<String, String> e : moved.entrySet()) {
+                JSONObject m = day.optJSONObject(e.getKey());
+                if (m == null) continue;
+                day.put(e.getValue(), newer(day.optJSONObject(e.getValue()), m));
+                day.remove(e.getKey());
+            }
+        }
+    }
+
+    /** Одинаковы ли журналы по содержанию (порядок ключей не важен). */
+    static boolean same(JSONObject a, JSONObject b) {
+        return canon(normalize(copy(a))).equals(canon(normalize(copy(b))));
+    }
+
+    private static String canon(Object v) {
+        if (v instanceof JSONObject) {
+            JSONObject o = (JSONObject) v;
+            List<String> ks = keys(o);
+            Collections.sort(ks);
+            StringBuilder sb = new StringBuilder("{");
+            for (String k : ks) sb.append(JSONObject.quote(k)).append(':').append(canon(o.opt(k))).append(',');
+            return sb.append('}').toString();
+        }
+        if (v instanceof JSONArray) {
+            JSONArray a = (JSONArray) v;
+            List<String> items = new ArrayList<>();
+            for (int i = 0; i < a.length(); i++) items.add(canon(a.opt(i)));
+            Collections.sort(items);
+            return "[" + String.join(",", items) + "]";
+        }
+        if (v instanceof Number) return String.valueOf(((Number) v).doubleValue());
+        return v == null || v == JSONObject.NULL ? "null" : JSONObject.quote(String.valueOf(v));
     }
 
     // ---------- Список из Word ----------
@@ -427,10 +700,7 @@ final class Attendance {
         int classes = 0, students = 0;
         for (Parsed p : parsed) {
             JSONObject c = null;
-            JSONArray a = j.optJSONArray("classes");
-            for (int i = 0; i < a.length(); i++) {
-                if (a.optJSONObject(i).optString("name").equalsIgnoreCase(p.name)) c = a.optJSONObject(i);
-            }
+            for (JSONObject x : sortedClasses(j)) if (x.optString("name").equalsIgnoreCase(p.name)) c = x;
             if (c == null) {
                 c = addClass(j, p.name);
                 classes++;

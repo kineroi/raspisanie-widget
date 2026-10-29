@@ -6,6 +6,8 @@ import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -24,6 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -84,8 +87,85 @@ public class AttendanceActivity extends Activity {
         return null;
     }
 
+    /** Сохранить и через пару секунд отправить на компьютер (несколько отметок подряд уйдут вместе). */
     private void persist() {
-        Attendance.save(this, journal);
+        journal = Attendance.commit(this, journal);
+        handler.removeCallbacks(syncTick);
+        handler.postDelayed(syncTick, 2000);
+    }
+
+    // ---------- Синхронизация с компьютером ----------
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean syncing = false;
+    private String syncText = null;
+    private boolean syncError = false;
+
+    private final Runnable syncTick = new Runnable() {
+        @Override
+        public void run() {
+            startSync();
+            handler.removeCallbacks(this);
+            handler.postDelayed(this, 60_000);
+        }
+    };
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        handler.post(syncTick);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        handler.removeCallbacks(syncTick);
+        // отметки, поставленные перед выходом, — отправить сразу
+        if (!Attestation.scriptUrl(this).isEmpty()) new Thread(this::syncQuietly).start();
+    }
+
+    private void syncQuietly() {
+        try {
+            Attendance.sync(getApplicationContext());
+        } catch (IOException ignored) {
+            // отправится при следующем открытии
+        }
+    }
+
+    private void startSync() {
+        if (syncing || Attestation.scriptUrl(this).isEmpty()) return;
+        syncing = true;
+        new Thread(() -> {
+            String error = null;
+            boolean changed = false;
+            try {
+                changed = Attendance.sync(getApplicationContext());
+            } catch (IOException e) {
+                error = e.getMessage();
+            }
+            String err = error;
+            boolean ch = changed;
+            runOnUiThread(() -> {
+                syncing = false;
+                if (isFinishing()) return;
+                syncError = err != null;
+                syncText = err != null ? err
+                        : "Синхронизировано с компьютером · " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+                // новое с компьютера: берём сохранённое (в нём уже объединены и наши отметки)
+                if (ch) journal = Attendance.load(this);
+                render();
+            });
+        }).start();
+    }
+
+    private View syncLine() {
+        boolean connected = !Attestation.scriptUrl(this).isEmpty();
+        String s = !connected ? "Журнал только на телефоне: подключите Google Диск на экране «Аттестация», "
+                + "чтобы отметки попадали на компьютер."
+                : syncText != null ? syncText : "Синхронизация с компьютером…";
+        TextView t = text(s, 12, c(!connected ? R.color.a_muted : syncError ? R.color.a_red : R.color.a_green), 500);
+        t.setPadding(0, dp(4), 0, 0);
+        return t;
     }
 
     // ---------- Экран ----------
@@ -103,6 +183,7 @@ public class AttendanceActivity extends Activity {
         col.addView(text("Посещаемость", 24, c(R.color.a_text), 400));
         col.addView(text(editing ? "Нажмите на ученика, чтобы исправить ФИО или удалить."
                 : "Нажмите на ученика, чтобы отметить отсутствие. Без отметки — был на уроках.", 13, c(R.color.a_muted), 400));
+        col.addView(syncLine());
 
         List<JSONObject> classes = Attendance.sortedClasses(journal);
         if (classes.isEmpty() && !editing) {
@@ -143,8 +224,9 @@ public class AttendanceActivity extends Activity {
         row.addView(edit, ep);
         col.addView(row, margins(dp(8)));
 
-        col.addView(text("Журнал и ФИО учеников хранятся только на этом телефоне и никуда не отправляются — "
-                + "ни в нейросеть, ни в BilimClass. Журнал на компьютере ведётся отдельно.", 12, c(R.color.a_muted), 400), margins(dp(16)));
+        col.addView(text("Журнал хранится на телефоне и в вашем Google Диске («Мой диск / Моё расписание / "
+                + "посещаемость.json») — через него отметки попадают на компьютер и обратно. ФИО учеников не "
+                + "отправляются ни в нейросеть, ни в BilimClass.", 12, c(R.color.a_muted), 400), margins(dp(16)));
         setContentView(scroll);
         scroll.post(() -> scroll.scrollTo(0, y));
     }
@@ -266,8 +348,10 @@ public class AttendanceActivity extends Activity {
         }
         if (editing) {
             Button add = Ui.button(this, "Добавить ученика", false);
+            String cid = cls.optString("id");
             add.setOnClickListener(v -> askText("Новый ученик · " + cls.optString("name"), "Фамилия Имя Отчество", "", name -> {
-                Attendance.addStudent(cls, name);
+                JSONObject now = findClass(cid);
+                if (now != null) Attendance.addStudent(now, name);
                 persist();
                 render();
             }));
@@ -338,11 +422,8 @@ public class AttendanceActivity extends Activity {
                 .setItems(new String[]{"Исправить ФИО", "Удалить из журнала"}, (dlg, which) -> {
                     if (which == 0) {
                         askText("ФИО ученика", "Фамилия Имя Отчество", s.optString("name"), name -> {
-                            try {
-                                s.put("name", Attendance.fixName(name));
-                            } catch (Exception ignored) {
-                                // строка в JSON — без ошибок
-                            }
+                            JSONObject now = findStudent(s.optString("id"));
+                            if (now != null) Attendance.rename(now, Attendance.fixName(name));
                             persist();
                             render();
                         });
@@ -363,11 +444,8 @@ public class AttendanceActivity extends Activity {
                 .setItems(new String[]{"Переименовать", "Удалить класс"}, (dlg, which) -> {
                     if (which == 0) {
                         askText("Название класса", "Например: 5 класс", cls.optString("name"), name -> {
-                            try {
-                                cls.put("name", name);
-                            } catch (Exception ignored) {
-                                // строка в JSON — без ошибок
-                            }
+                            JSONObject now = findClass(cls.optString("id"));
+                            if (now != null) Attendance.rename(now, name);
                             persist();
                             render();
                         });
@@ -380,6 +458,22 @@ public class AttendanceActivity extends Activity {
                     }
                 })
                 .show();
+    }
+
+    /**
+     * Класс и ученик — по id в нынешнем журнале: пока открыт диалог, могли прийти отметки
+     * с компьютера, и журнал на экране уже другой объект.
+     */
+    private JSONObject findClass(String cid) {
+        for (JSONObject c : Attendance.sortedClasses(journal)) if (cid.equals(c.optString("id"))) return c;
+        return null;
+    }
+
+    private JSONObject findStudent(String sid) {
+        for (JSONObject c : Attendance.sortedClasses(journal)) {
+            for (JSONObject s : Attendance.sortedStudents(c)) if (sid.equals(s.optString("id"))) return s;
+        }
+        return null;
     }
 
     private interface TextResult {
