@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   expand: (note, classes, theme) => ipcRenderer.invoke('expand', note, classes, theme),
   sendHomework: (req) => ipcRenderer.invoke('send-homework', req),
+  homeworkHistory: () => ipcRenderer.invoke('hw-history'),
   deleteFile: (date, fileId) => ipcRenderer.invoke('delete-file', date, fileId),
   onData: (cb) => ipcRenderer.on('data-changed', (_e, data) => cb(data)),
   openGrades: () => ipcRenderer.invoke('open-grades'),

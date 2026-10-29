@@ -299,6 +299,60 @@
     return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
   }
 
+  // ---------- Повтор домашки ----------
+
+  const HOMEWORK_HISTORY_MAX = 200;
+
+  /** Добавить отправленную домашку в историю: { text, cls, date (ISO), start }. Новые — в начале. */
+  function addHomeworkHistory(history, entry) {
+    return [entry, ...(history || [])].slice(0, HOMEWORK_HISTORY_MAX);
+  }
+
+  /**
+   * Подсказки для окна домашки по расписанию (days) и истории отправленного.
+   * last — домашка последнего прошедшего урока тех же классов (или null);
+   * frequent — самые частые задания, при равенстве — более свежие.
+   */
+  function homeworkSuggestions(days, history, lesson, dateIso, limit = 8) {
+    const entries = [];
+    for (const [iso, day] of Object.entries(days || {})) {
+      for (const l of day.lessons || []) {
+        for (const d of l.details || []) {
+          if (d.homework) entries.push({ text: d.homework.trim(), cls: d.cls, date: iso, start: l.start });
+        }
+      }
+    }
+    for (const h of history || []) {
+      if (h && h.text) entries.push({ text: String(h.text).trim(), cls: h.cls, date: h.date, start: h.start || '' });
+    }
+
+    // классы урока; у запасного расписания их нет — берём из названия «7А + 8А»
+    const classes = new Set((lesson.details || []).length
+      ? lesson.details.map((d) => d.cls) : String(lesson.title).split(/\s*\+\s*/));
+    const earlier = (e) => e.date < dateIso || (e.date === dateIso && e.start < lesson.start);
+    const prev = entries.filter((e) => classes.has(e.cls) && earlier(e))
+      .sort((a, b) => (b.date + b.start).localeCompare(a.date + a.start));
+    const last = prev.length ? { text: prev[0].text, date: prev[0].date, cls: prev[0].cls } : null;
+
+    // Одна и та же отправка есть и в истории, и в расписании — считаем её один раз
+    const seen = new Set();
+    const stats = new Map();
+    for (const e of entries) {
+      const key = `${e.text}|${e.cls}|${e.date}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const s = stats.get(e.text) || { text: e.text, count: 0, latest: '' };
+      s.count++;
+      if (e.date > s.latest) s.latest = e.date;
+      stats.set(e.text, s);
+    }
+    const frequent = [...stats.values()]
+      .sort((a, b) => b.count - a.count || b.latest.localeCompare(a.latest))
+      .slice(0, limit)
+      .map((s) => s.text);
+    return { last, frequent };
+  }
+
   // ---------- Домашка без ИИ ----------
 
   const RULES = [
@@ -396,5 +450,6 @@
     DAY_NAMES, MONTHS, isoDate, parseIso, addDays, dow, mondayOf, dateText, toMin, range, eduYear,
     templateDay, makeSource, compactClass, parseWeek, parseWeeks, homeworkSummary, computeState, formatLeft,
     expandRules, GEMINI_MODELS, GEMINI_SYSTEM, geminiRequest, geminiParse, nextReminder, reminderText, REMIND_BEFORE_MIN,
+    addHomeworkHistory, homeworkSuggestions, HOMEWORK_HISTORY_MAX,
   };
 });

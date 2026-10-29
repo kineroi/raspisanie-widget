@@ -130,7 +130,35 @@ async function init() {
   const current = lesson.details.find((x) => x.homework);
   $('result').value = current ? current.homework : '';
   renderExisting();
+  renderQuick(data.days, await window.api.homeworkHistory());
   $('note').focus();
+}
+
+/** Кнопки «как в прошлый раз» и частые задания: нажатие вставляет текст в поле для BilimClass. */
+function renderQuick(days, history) {
+  const s = L.homeworkSuggestions(days, history, lesson, date);
+  const box = $('quick');
+  box.textContent = '';
+  const use = (text, what) => {
+    $('result').value = text;
+    status(`${what} — проверьте текст и отправьте.`);
+    $('result').focus();
+  };
+  if (s.last) {
+    const when = L.dateText(L.parseIso(s.last.date));
+    const b = el('button', 'last', `↺ Как в прошлый раз (${s.last.cls}, ${when})`);
+    b.title = s.last.text;
+    b.addEventListener('click', () => use(s.last.text, `Вставлена домашка ${s.last.cls} от ${when}`));
+    box.append(b);
+  }
+  for (const text of s.frequent) {
+    if (s.last && text === s.last.text) continue;
+    const b = el('button', '', text.split('\n')[0].slice(0, 60));
+    b.title = text;
+    b.addEventListener('click', () => use(text, 'Вставлено частое задание'));
+    box.append(b);
+  }
+  $('quickBox').hidden = !box.children.length;
 }
 
 $('expand').addEventListener('click', async () => {
@@ -192,7 +220,7 @@ $('send').addEventListener('click', async () => {
   for (const f of added) {
     files.push({ name: f.name, mime: f.type, data: new Uint8Array(await f.arrayBuffer()) });
   }
-  const r = await window.api.sendHomework({ date, uuids: sel, body, files });
+  const r = await window.api.sendHomework({ date, start, uuids: sel, body, files });
   setBusy(false);
   if (r.ok) {
     status('Домашка отправлена в BilimClass ✓');

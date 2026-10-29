@@ -28,6 +28,12 @@
     .actions .primary { flex: 1.6; padding: 10px; }
     .actions button { flex: 1; }
     #expand { width: 100%; margin-top: 8px; padding: 9px; }
+    .quick { display: flex; flex-wrap: wrap; gap: 6px; }
+    .quick button {
+      max-width: 100%; padding: 6px 10px; font-size: 13px; text-align: left;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .quick button.last { border-color: var(--primary); color: var(--primary); }
   </style>
 </head>
 <body>
@@ -47,6 +53,11 @@
     <button id="expand" class="primary">✨ Расписать на русском и английском</button>
     <div id="noKey" class="small muted" hidden>Ключ нейросети не указан — текст распишется по простым правилам. Ключ можно добавить в основном окне.</div>
     <div id="aiLabel" class="small muted" hidden></div>
+
+    <div id="quickBox" hidden>
+      <div class="label">Или готовое задание</div>
+      <div class="quick" id="quick"></div>
+    </div>
 
     <div class="label">Текст для BilimClass (можно исправить)</div>
     <textarea id="result" rows="6" placeholder="Здесь появится готовый текст"></textarea>

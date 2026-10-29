@@ -521,7 +521,7 @@ ipcMain.handle('expand', async (_e, note, classes, theme) => {
 });
 
 ipcMain.handle('send-homework', async (_e, req) => {
-  const { date, uuids, body, files } = req || {};
+  const { date, start, uuids, body, files } = req || {};
   const year = L.eduYear(L.parseIso(String(date)));
   const uploads = [];
   for (const f of files || []) {
@@ -536,12 +536,23 @@ ipcMain.handle('send-homework', async (_e, req) => {
       done.push(u.cls);
     }
   } catch (e) {
+    rememberHomework(String(body), done, String(date), String(start || ''));
     runSync();
     return { ok: false, error: bilim.errorText(e), done };
   }
+  rememberHomework(String(body), done, String(date), String(start || ''));
   await runSync();
   return { ok: true, done };
 });
+
+/** Запомнить отправленную домашку — для кнопок «как в прошлый раз» и «частые задания». */
+function rememberHomework(text, classes, date, start) {
+  let history = store.get('hwHistory', []);
+  for (const cls of classes) history = L.addHomeworkHistory(history, { text, cls, date, start });
+  if (classes.length) store.set({ hwHistory: history });
+}
+
+ipcMain.handle('hw-history', () => store.get('hwHistory', []));
 
 ipcMain.handle('delete-file', async (_e, date, fileId) => {
   const year = L.eduYear(L.parseIso(String(date)));
