@@ -13,6 +13,7 @@ const reminders = require('./reminders');
 const journal = require('./journal');
 const analysis = require('./analysis');
 const attestation = require('./attestation');
+const attendance = require('./attendance');
 const digest = require('./digest');
 const L = require('../shared/logic');
 
@@ -83,6 +84,8 @@ function snapshot() {
     remindersOn: store.get('reminders', true),
     gradeAlertsOn: store.get('gradeAlerts', true),
     update: updater.getState(),
+    attendanceAlerts: attendance.alerts(),
+    attendanceReady: attendance.load().classes.length > 0,
   };
 }
 
@@ -260,6 +263,32 @@ function openAttestation() {
   attestationWin.loadFile(path.join(RENDERER, 'attestation.html'));
   attestationWin.on('closed', () => {
     attestationWin = null;
+  });
+}
+
+let attendanceWin = null;
+
+function openAttendance() {
+  if (attendanceWin && !attendanceWin.isDestroyed()) {
+    attendanceWin.show();
+    attendanceWin.focus();
+    return;
+  }
+  attendanceWin = new BrowserWindow({
+    width: 1280,
+    height: 820,
+    minWidth: 720,
+    minHeight: 500,
+    title: 'Посещаемость',
+    backgroundColor: windowBackground(),
+    icon: path.join(ASSETS, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: webPrefs(),
+  });
+  attendanceWin.removeMenu();
+  attendanceWin.loadFile(path.join(RENDERER, 'attendance.html'));
+  attendanceWin.on('closed', () => {
+    attendanceWin = null;
   });
 }
 
@@ -517,6 +546,43 @@ ipcMain.handle('att-open-root', () => {
   shell.openPath(r);
   return true;
 });
+ipcMain.handle('open-attendance', () => openAttendance());
+ipcMain.handle('aj-load', () => attendance.load());
+ipcMain.handle('aj-save', (_e, j) => {
+  const r = attendance.save(j || {});
+  broadcast();
+  return r;
+});
+ipcMain.handle('aj-import', async (e) => {
+  const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+    title: 'Списки учащихся (Word с таблицами «№ | ФИО»)',
+    properties: ['openFile'],
+    filters: [{ name: 'Документ Word', extensions: ['docx'] }],
+  });
+  if (r.canceled) return { ok: false, canceled: true };
+  try {
+    const out = await attendance.importDocx(r.filePaths[0]);
+    broadcast();
+    return out;
+  } catch (err) {
+    return { ok: false, message: `Не удалось прочитать документ: ${err.message}` };
+  }
+});
+ipcMain.handle('aj-export', async (e, month, name) => {
+  const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), {
+    title: 'Сохранить журнал посещаемости',
+    defaultPath: path.join(app.getPath('documents'), String(name || 'Посещаемость.docx')),
+    filters: [{ name: 'Документ Word', extensions: ['docx'] }],
+  });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  try {
+    const file = await attendance.exportDocx(String(month), r.filePath);
+    shell.showItemInFolder(file);
+    return { ok: true, file };
+  } catch (err) {
+    return { ok: false, message: `Не удалось сохранить: ${err.message}` };
+  }
+});
 ipcMain.handle('an-load', (_e, quarter) => analysis.load(Number(quarter) || 1));
 ipcMain.handle('an-settings', () => analysis.settings());
 ipcMain.handle('an-save-settings', (_e, s) => analysis.saveSettings(s || {}));
@@ -699,8 +765,20 @@ function smokeGrades() {
   store.writeGrades({ updatedAt: Date.now(), journals: [j], lessons: [{ date: iso(L.addDays(today, -1)), cls: '7А', theme: '', homework: '' }] });
 }
 
+/** Выдуманный класс для самопроверки журнала посещаемости. */
+function smokeAttendance() {
+  const T = require('../shared/attendance');
+  const j = T.empty();
+  const c = T.addClass(j, '4 класс');
+  const a = T.addStudent(c, 'ученик первый');
+  T.addStudent(c, 'УЧЕНИК ВТОРОЙ');
+  for (const d of T.schoolDays(j, '2026-11').slice(0, 4)) T.setMark(j, d, a.id, 'sick');
+  attendance.save(j);
+}
+
 function startSmoke() {
   smokeGrades();
+  smokeAttendance();
   smokeAnalysis();
   app.on('browser-window-created', (_e, w) => {
     w.webContents.on('console-message', (event) => {
@@ -714,6 +792,22 @@ function startSmoke() {
   setTimeout(() => openHomework('2026-10-19', '09:00'), 4000);
   setTimeout(() => openGrades(), 4500);
   setTimeout(() => openAnalysis(), 4700);
+  setTimeout(() => openAttendance(), 4800);
+  setTimeout(async () => {
+    try {
+      if (!attendanceWin) { smokeErrors.push('attendance window not opened'); return; }
+      const rows = await attendanceWin.webContents.executeJavaScript("document.querySelectorAll('tbody tr').length", true);
+      if (rows !== 2) smokeErrors.push(`attendance window: ${rows} rows`);
+      const file = path.join(app.getPath('userData'), 'smoke-attendance.docx');
+      await attendance.exportDocx('2026-11', file);
+      const doc = await require('jszip').loadAsync(require('fs').readFileSync(file));
+      const xml = await doc.file('word/document.xml').async('string');
+      if (!xml.includes('Список учащихся 4 класса НОЯБРЬ')) smokeErrors.push('attendance export: no heading');
+      attendance.alerts();
+    } catch (err) {
+      smokeErrors.push(`attendance check: ${err.stack || err}`);
+    }
+  }, 7000);
   setTimeout(async () => {
     try {
       if (!analysisWin) { smokeErrors.push('analysis window not opened'); return; }

@@ -297,6 +297,24 @@ function renderTiles(today, source) {
   box.append(an);
 }
 
+function renderAttendance() {
+  const box = $('attendance');
+  box.textContent = '';
+  const list = data.attendanceAlerts || [];
+  if (!data.attendanceReady) {
+    box.append(el('div', 'muted small', 'Журнал посещаемости пока пуст: загрузите списки учеников из Word.'));
+  } else if (!list.length) {
+    box.append(el('div', 'ok', 'Долгих болезней и пропусков без уважительной причины нет ✓'));
+  } else {
+    box.append(el('div', 'warn', 'Обратите внимание'));
+    const ul = el('ul');
+    for (const a of list.slice(0, 5)) ul.append(el('li', '', a.text));
+    if (list.length > 5) ul.append(el('li', 'muted', `и ещё ${list.length - 5}…`));
+    box.append(ul);
+  }
+  box.append(button('Открыть журнал', 'primary', () => window.api.openAttendance()));
+}
+
 function stat(color, icon, value, name, sub) {
   const b = el('button', 'stat');
   const ic = el('div', 'ic');
@@ -433,6 +451,7 @@ function render() {
   $('openAnalysis').disabled = !data.connected;
   $('autostart').checked = data.autostart;
   renderStats();
+  renderAttendance();
   renderWeek();
 }
 
@@ -450,6 +469,7 @@ $('gradeAlerts').addEventListener('change', (e) => window.api.setGradeAlerts(e.t
 $('openGrades').addEventListener('click', () => window.api.openGrades());
 $('openAnalysis').addEventListener('click', () => window.api.openAnalysis());
 $('openAttestation').addEventListener('click', () => window.api.openAttestation());
+$('openAttendance').addEventListener('click', () => window.api.openAttendance());
 $('testReminder').addEventListener('click', async () => {
   if (!(await window.api.testReminder())) alert('Ближайших уроков не найдено.');
 });

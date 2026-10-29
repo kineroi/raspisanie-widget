@@ -34,6 +34,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
@@ -426,6 +428,16 @@ public class MainActivity extends Activity {
             grades.setOnClickListener(null);
         }
         tiles.addView(grades);
+
+        // посещаемость: долго болеют или пропускают без уважительной причины
+        JSONObject journal = Attendance.load(this);
+        int warn = Attendance.alerts(journal, today.toString()).size();
+        boolean noLists = journal.optJSONArray("classes").length() == 0;
+        tiles.addView(tile(warn > 0 ? R.color.a_red : R.color.a_green, warn > 0 ? R.color.a_red_soft : R.color.a_green_soft,
+                R.drawable.ic_app_people,
+                warn > 0 ? warn + " " + plural(warn, "предупреждение", "предупреждения", "предупреждений") : "Посещаемость",
+                warn > 0 ? "болеют или прогулы" : noLists ? "загрузить списки" : "отметить сегодня",
+                () -> startActivity(new Intent(this, AttendanceActivity.class))));
 
         tiles.addView(tile(R.color.a_primary, R.color.a_primary_soft, R.drawable.ic_app_medal,
                 "Аттестация", "грамоты на Диск",
