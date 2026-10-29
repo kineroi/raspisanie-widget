@@ -143,6 +143,21 @@ public class AttestationActivity extends Activity {
             card.addView(text("Файлы попадают в «Мой диск / " + Attestation.ROOT_FOLDER
                     + "» — ту же папку, что на компьютере.", 13, c(R.color.a_muted), 400));
             if (driveMessage != null) card.addView(text(driveMessage, 13, c(R.color.a_red), 400));
+            // скрипт иногда нужно обновить (новые возможности): код и инструкция — и после подключения
+            card.addView(text("Обновить скрипт: на script.google.com замените код новым, затем «Развернуть» → "
+                    + "«Управление развертываниями» → карандаш → «Новая версия» → «Развернуть». Ссылка не меняется.",
+                    12, c(R.color.a_muted), 400), margins(dp(8)));
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            Button copy = Ui.button(this, "Скопировать код", false);
+            copy.setOnClickListener(v -> copyScript());
+            row.addView(copy, new LinearLayout.LayoutParams(0, dp(40), 1f));
+            Button link = Ui.button(this, "Код на GitHub", false);
+            link.setOnClickListener(v -> open(SCRIPT_LINK));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            lp.leftMargin = dp(8);
+            row.addView(link, lp);
+            card.addView(row, margins(dp(8)));
             Button off = Ui.button(this, "Отключить", false);
             off.setOnClickListener(v -> new AlertDialog.Builder(this)
                     .setMessage("Отключить Google Диск? Уже сохранённые файлы останутся на Диске.")
