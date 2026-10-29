@@ -101,4 +101,38 @@ public class AiTest {
         assertNull(Ai.keyCheckRequest(any, "sk-1"));
         assertEquals("Google Gemini · gemini-flash-lite-latest", Ai.label(gem, ""));
     }
+
+    @Test
+    public void fileRequestsAndJsonAnswers() throws Exception {
+        List<Ai.FilePart> pdf = Collections.singletonList(new Ai.FilePart("application/pdf", "JVBE"));
+        List<Ai.FilePart> jpg = Collections.singletonList(new Ai.FilePart("image/jpeg", "/9j/"));
+
+        Ai.Provider gem = Ai.provider("gemini", "");
+        JSONObject g = new JSONObject(Ai.fileRequest(gem, "AIza1", "gemini-flash-latest", "sys", "doc", pdf).body);
+        assertEquals("application/json", g.getJSONObject("generationConfig").getString("responseMimeType"));
+        assertEquals("JVBE", g.getJSONArray("contents").getJSONObject(0).getJSONArray("parts").getJSONObject(0)
+                .getJSONObject("inline_data").getString("data"));
+
+        Ai.Provider ant = Ai.provider("anthropic", "");
+        JSONObject a = new JSONObject(Ai.fileRequest(ant, "sk-ant-1", "claude-haiku", "sys", "doc", pdf).body);
+        assertEquals("document", a.getJSONArray("messages").getJSONObject(0).getJSONArray("content")
+                .getJSONObject(0).getString("type"));
+
+        Ai.Provider xai = Ai.provider("xai", "");
+        JSONObject x = new JSONObject(Ai.fileRequest(xai, "xai-1", "grok-4-fast", "sys", "doc", jpg).body);
+        assertEquals("data:image/jpeg;base64,/9j/", x.getJSONArray("messages").getJSONObject(1).getJSONArray("content")
+                .getJSONObject(0).getJSONObject("image_url").getString("url"));
+        try {
+            Ai.fileRequest(xai, "xai-1", "grok-4-fast", "sys", "doc", pdf);
+            throw new AssertionError("PDF не должен уходить в OpenAI-формат");
+        } catch (Ai.Failure f) {
+            assertEquals(Ai.PDF_UNSUPPORTED, f.code);
+        }
+
+        String gemBody = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"думаю\",\"thought\":true},"
+                + "{\"text\":\"{\\\"section\\\":\\\"awards\\\"}\"}]}}]}";
+        assertEquals("awards", Ai.parseJson(Ai.rawText(gem, gemBody)).getString("section"));
+        assertEquals("ozp", Ai.parseJson("```json\n{\"section\":\"ozp\"}\n```").getString("section"));
+        assertNull(Ai.parseJson("не знаю"));
+    }
 }
