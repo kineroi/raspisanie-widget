@@ -77,12 +77,15 @@ $('themeBtn').addEventListener('click', () => {
 darkQuery.addEventListener('change', applyTheme);
 applyTheme();
 
-// ---------- Разделы: главная и настройки ----------
+// ---------- Разделы: главная, неделя, настройки ----------
 
+/** Неделя — та же страница, что главная, но только с расписанием на всю ширину. */
 function showView(name) {
-  $('viewHome').hidden = name !== 'home';
+  $('viewHome').hidden = name === 'settings';
+  $('viewHome').classList.toggle('week-only', name === 'week');
   $('viewSettings').hidden = name !== 'settings';
   $('navHome').classList.toggle('active', name === 'home');
+  $('navWeek').classList.toggle('active', name === 'week');
   $('navSettings').classList.toggle('active', name === 'settings');
   $('scroll').scrollTop = 0;
 }
@@ -321,7 +324,9 @@ function renderStats() {
   );
 }
 
+/** Открыть раздел «Неделя» на сегодняшнем дне. */
 function scrollToToday() {
+  showView('week');
   const t = document.querySelector('.day.today');
   (t || $('weekCard')).scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -433,10 +438,7 @@ function render() {
 
 $('navHome').addEventListener('click', () => showView('home'));
 $('navSettings').addEventListener('click', () => showView('settings'));
-$('navWeek').addEventListener('click', () => {
-  showView('home');
-  $('weekCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
+$('navWeek').addEventListener('click', () => showView('week'));
 $('prevWeek').addEventListener('click', () => { weekOffset = Math.max(-1, weekOffset - 1); renderWeek(); });
 $('nextWeek').addEventListener('click', () => { weekOffset = Math.min(1, weekOffset + 1); renderWeek(); });
 $('showMini2').addEventListener('click', () => window.api.showMini());
