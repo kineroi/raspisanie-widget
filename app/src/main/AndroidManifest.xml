@@ -62,6 +62,13 @@
             android:theme="@style/AppTheme"
             android:label="Успеваемость" />
 
+        <activity
+            android:name=".AttendanceActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:label="Посещаемость"
+            android:theme="@style/AppTheme" />
+
         <!-- Аттестация: можно «Поделиться» грамотой или сертификатом из WhatsApp, галереи, файлов -->
         <activity
             android:name=".AttestationActivity"

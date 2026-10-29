@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Посещаемость</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <style>
+    .page { padding: 24px 32px 40px; }
+    h1 { color: var(--text); font-size: 24px; font-weight: 400; margin: 0; }
+    h2 { color: var(--text); font-size: 18px; font-weight: 500; margin: 0; }
+    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .card { background: var(--surface); border-radius: 8px; padding: 16px 20px; margin-top: 16px; }
+    .months { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+    .months button.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+    .alerts { background: var(--red-soft); color: var(--text); }
+    .alerts h2 { color: var(--red); font-size: 16px; }
+    .alerts li { margin-top: 4px; }
+    .alerts ul { margin: 6px 0 0; padding-left: 20px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .code { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 4px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+    .r-sick { background: var(--orange-soft); color: var(--orange); }
+    .r-free { background: var(--blue-soft); color: var(--blue); }
+    .r-family { background: var(--primary-soft); color: var(--primary); }
+    .r-absent { background: var(--red-soft); color: var(--red); }
+    .r-other { background: var(--green-soft); color: var(--green); }
+    .scroll-x { overflow-x: auto; margin-top: 10px; }
+    table { border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid var(--border); padding: 0; height: 32px; text-align: center; }
+    th { font-weight: 500; color: var(--muted); font-size: 12px; padding: 0 2px; }
+    th.day { width: 34px; min-width: 34px; cursor: pointer; }
+    th.day:hover { color: var(--primary); }
+    th.off, td.off { background: var(--bg); color: var(--border); }
+    th.today { background: var(--primary); color: var(--on-primary); }
+    th.monday, td.monday { border-left: 2px solid var(--muted); }
+    td.name { text-align: left; padding: 0 10px; white-space: nowrap; min-width: 240px; color: var(--text); }
+    td.num { width: 34px; color: var(--muted); }
+    td.mark { cursor: pointer; }
+    td.mark:hover { background: var(--primary-soft); }
+    td.total { width: 56px; color: var(--text); font-weight: 500; }
+    td.total.bad { color: var(--red); }
+    .pop {
+      position: fixed; z-index: 10; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; min-width: 250px;
+    }
+    .pop button { border: 0; background: transparent; text-align: left; padding: 7px 10px; display: flex; gap: 10px; align-items: center; }
+    .pop button:hover { background: var(--primary-soft); }
+    .pop .head { font-size: 12px; color: var(--muted); padding: 4px 10px 6px; }
+    .pop .other { display: flex; gap: 6px; padding: 6px 4px 2px; }
+    .pop .other input { flex: 1; margin: 0; }
+    .edit-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .edit-row input { flex: 1; margin: 0; }
+    .class-head { display: flex; align-items: center; gap: 10px; }
+    .class-head .stat { font-size: 12px; color: var(--muted); }
+    .empty { text-align: center; padding: 32px 16px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="top">
+      <div class="grow">
+        <h1>Посещаемость</h1>
+        <div class="muted small">Нажмите на клетку, чтобы отметить отсутствие. Пустая клетка — ученик был. Нажмите на число — сделать день выходным или учебным.</div>
+      </div>
+      <button id="import">Загрузить списки из Word</button>
+      <button id="edit">Изменить списки</button>
+      <button id="export" class="primary">Выгрузить месяц в Word</button>
+    </div>
+    <div class="months" id="months"></div>
+    <div id="alerts"></div>
+    <div class="legend" id="legend"></div>
+    <div id="message" class="small" style="margin-top: 8px"></div>
+    <div id="classes"></div>
+    <div class="small muted" style="margin-top: 16px">
+      Журнал и ФИО учеников хранятся только на этом компьютере и никуда не отправляются — ни в нейросеть, ни в BilimClass.
+      Журнал на телефоне ведётся отдельно.
+    </div>
+  </div>
+  <script src="../shared/attendance.js"></script>
+  <script src="attendance.js"></script>
+</body>
+</html>
