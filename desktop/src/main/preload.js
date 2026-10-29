@@ -1,6 +1,6 @@
 'use strict';
 // Мост между окнами и программой: окна могут вызывать только эти команды.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   getData: () => ipcRenderer.invoke('get-data'),
@@ -42,4 +42,15 @@ contextBridge.exposeInMainWorld('api', {
   gradesRefresh: () => ipcRenderer.invoke('grades-refresh'),
   setGradeAlerts: (on) => ipcRenderer.invoke('set-grade-alerts', on),
   onGrades: (cb) => ipcRenderer.on('grades-changed', () => cb()),
+  openAttestation: () => ipcRenderer.invoke('open-attestation'),
+  attSettings: () => ipcRenderer.invoke('att-settings'),
+  attChooseRoot: () => ipcRenderer.invoke('att-choose-root'),
+  attResetRoot: () => ipcRenderer.invoke('att-reset-root'),
+  attPickFiles: () => ipcRenderer.invoke('att-pick-files'),
+  attClassify: (file) => ipcRenderer.invoke('att-classify', file),
+  attSave: (file, meta) => ipcRenderer.invoke('att-save', file, meta),
+  attShow: (file) => ipcRenderer.invoke('att-show', file),
+  attOpenRoot: () => ipcRenderer.invoke('att-open-root'),
+  /** Путь к перетащенному в окно файлу. */
+  pathForFile: (file) => webUtils.getPathForFile(file),
 });

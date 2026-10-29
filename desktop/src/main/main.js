@@ -12,6 +12,7 @@ const updater = require('./updater');
 const reminders = require('./reminders');
 const journal = require('./journal');
 const analysis = require('./analysis');
+const attestation = require('./attestation');
 const digest = require('./digest');
 const L = require('../shared/logic');
 
@@ -236,6 +237,32 @@ function openHomework(date, start) {
 let gradesWin = null;
 let analysisWin = null;
 
+let attestationWin = null;
+
+function openAttestation() {
+  if (attestationWin && !attestationWin.isDestroyed()) {
+    attestationWin.show();
+    attestationWin.focus();
+    return;
+  }
+  attestationWin = new BrowserWindow({
+    width: 980,
+    height: 820,
+    minWidth: 620,
+    minHeight: 500,
+    title: 'Аттестация',
+    backgroundColor: windowBackground(),
+    icon: path.join(ASSETS, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: webPrefs(),
+  });
+  attestationWin.removeMenu();
+  attestationWin.loadFile(path.join(RENDERER, 'attestation.html'));
+  attestationWin.on('closed', () => {
+    attestationWin = null;
+  });
+}
+
 function openAnalysis() {
   if (analysisWin && !analysisWin.isDestroyed()) {
     analysisWin.show();
@@ -458,6 +485,38 @@ ipcMain.handle('set-grade-alerts', (_e, on) => {
 });
 ipcMain.handle('open-grades', () => openGrades());
 ipcMain.handle('open-analysis', () => openAnalysis());
+ipcMain.handle('open-attestation', () => openAttestation());
+ipcMain.handle('att-settings', () => attestation.settings());
+ipcMain.handle('att-choose-root', async (e) => {
+  const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+    title: 'Папка «Аттестация» (лучше на Google Диске)',
+    defaultPath: attestation.root() || undefined,
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  return r.canceled ? attestation.settings() : attestation.setRoot(r.filePaths[0]);
+});
+ipcMain.handle('att-reset-root', () => attestation.setRoot(''));
+ipcMain.handle('att-pick-files', async (e) => {
+  const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+    title: 'Грамоты, сертификаты, дипломы',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Документы', extensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'docx'] }],
+  });
+  return r.canceled ? [] : r.filePaths;
+});
+ipcMain.handle('att-classify', (_e, file) => attestation.classify(String(file)));
+ipcMain.handle('att-save', (_e, file, meta) => attestation.save(String(file), meta || {}));
+ipcMain.handle('att-show', (_e, file) => {
+  const f = String(file || '');
+  if (f) shell.showItemInFolder(f);
+});
+ipcMain.handle('att-open-root', () => {
+  const r = attestation.root();
+  if (!r) return false;
+  require('fs').mkdirSync(r, { recursive: true });
+  shell.openPath(r);
+  return true;
+});
 ipcMain.handle('an-load', (_e, quarter) => analysis.load(Number(quarter) || 1));
 ipcMain.handle('an-settings', () => analysis.settings());
 ipcMain.handle('an-save-settings', (_e, s) => analysis.saveSettings(s || {}));
