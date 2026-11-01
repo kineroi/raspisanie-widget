@@ -329,6 +329,150 @@ async function importWord() {
   render();
 }
 
+// ---------- Ответ из WhatsApp ----------
+// Учитель вставляет ответы классных руководителей, программа находит учеников и причины,
+// учитель проверяет галочки и нажимает «Отметить». Разбор — здесь же, без нейросети.
+
+/** null — панель закрыта; иначе { date, text, rows, present, unknown, parsed }. */
+let reply = null;
+
+function openReply() {
+  const t = todayIso();
+  reply = { date: t, text: '', rows: [], present: [], unknown: [], parsed: false };
+  renderReply();
+  $('replyText').focus();
+}
+
+function parseReplyText() {
+  const r = T.parseReply(journal, reply.text);
+  reply.rows = [];
+  for (const it of r.items) {
+    if (it.sid) {
+      reply.rows.push({ sid: it.sid, name: it.name, cls: it.cls, reason: it.reason, note: it.note, line: it.line, on: true });
+    } else {
+      // непонятно, кто именно: показываем всех подходящих без галочек — учитель отметит нужных
+      for (const o of it.options) {
+        reply.rows.push({ sid: o.sid, name: o.name, cls: o.cls, reason: it.reason, note: it.note, line: it.line, on: false, group: it.name });
+      }
+    }
+  }
+  reply.present = r.present;
+  reply.unknown = r.unknown;
+  reply.parsed = true;
+  renderReply();
+}
+
+async function applyReply() {
+  const rows = reply.rows.filter((x) => x.on);
+  for (const x of rows) T.setMark(journal, reply.date, x.sid, x.reason, x.reason === 'other' ? x.note : '');
+  await persist();
+  month = T.defaultMonth(reply.date);
+  const n = rows.length;
+  reply = null;
+  renderReply();
+  render();
+  message(`Отмечено отсутствующих: ${n}.`);
+}
+
+function reasonSelect(row, onChange) {
+  const s = el('select');
+  for (const [v, text] of [['', '— причина не указана —'], ...T.REASONS.map((r) => [r.id, r.name])]) {
+    const o = el('option', '', text);
+    o.value = v;
+    s.append(o);
+  }
+  s.value = row.reason;
+  s.addEventListener('change', () => {
+    row.reason = s.value;
+    onChange();
+  });
+  return s;
+}
+
+function renderReply() {
+  const box = $('reply');
+  box.textContent = '';
+  if (!reply) return;
+  const card = el('div', 'card reply');
+  card.append(el('h2', '', 'Ответ из WhatsApp'));
+  card.append(el('div', 'muted small', 'Скопируйте в WhatsApp ответы классных руководителей (можно сразу несколько сообщений) '
+    + 'и вставьте сюда. Программа найдёт учеников и причины — проверьте и нажмите «Отметить».'));
+  const ta = el('textarea');
+  ta.id = 'replyText';
+  ta.placeholder = 'Например:\n4 кл: Иванов, Петрова болеют\n6 класс — все на месте';
+  ta.value = reply.text;
+  ta.addEventListener('input', () => { reply.text = ta.value; });
+  card.append(ta);
+
+  const bar = el('div', 'bar');
+  bar.append(el('span', 'muted small', 'День:'));
+  const date = el('input');
+  date.type = 'date';
+  date.value = reply.date;
+  date.addEventListener('change', () => {
+    reply.date = date.value || reply.date;
+    renderReply();
+  });
+  bar.append(date);
+  if (!T.isSchoolDay(journal, reply.date)) {
+    const w = el('span', 'small', 'это не учебный день — проверьте дату');
+    w.style.color = 'var(--orange)';
+    bar.append(w);
+  }
+  const parse = el('button', reply.parsed ? '' : 'primary', reply.parsed ? 'Разобрать заново' : 'Разобрать');
+  parse.addEventListener('click', parseReplyText);
+  const cancel = el('button', '', 'Закрыть');
+  cancel.addEventListener('click', () => { reply = null; renderReply(); });
+  bar.append(el('div', 'grow'), parse, cancel);
+  card.append(bar);
+
+  if (reply.parsed) {
+    if (!reply.rows.length) card.append(el('div', 'small muted', 'Отсутствующих в тексте не нашлось.'));
+    let lastGroup = '';
+    for (const row of reply.rows) {
+      if (row.group && row.group !== lastGroup) card.append(el('div', 'group', `Непонятно, кто именно («${row.line}») — отметьте нужных:`));
+      lastGroup = row.group || '';
+      const r = el('div', 'row-item');
+      const label = el('label');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = row.on;
+      cb.addEventListener('change', () => { row.on = cb.checked; renderReply(); });
+      label.append(cb, `${row.name} · ${row.cls}`);
+      r.append(label);
+      const sel = reasonSelect(row, renderReply);
+      if (row.on && !row.reason) sel.classList.add('need');
+      r.append(sel);
+      if (row.reason === 'other') {
+        const note = el('input');
+        note.type = 'text';
+        note.placeholder = 'причина';
+        note.value = row.note;
+        note.addEventListener('input', () => { row.note = note.value; });
+        r.append(note);
+      }
+      if (!row.group) r.append(el('div', 'src', `«${row.line}»`));
+      card.append(r);
+    }
+    if (reply.present.length) card.append(el('div', 'small', `Все на месте: ${reply.present.join(', ')}.`));
+    if (reply.unknown.length) {
+      const u = el('div', 'small', `Нет в журнале: ${reply.unknown.join(', ')} — проверьте, может быть, опечатка.`);
+      u.style.color = 'var(--orange)';
+      card.append(u);
+    }
+    const chosen = reply.rows.filter((x) => x.on);
+    const missing = chosen.filter((x) => !x.reason).length;
+    const go = el('button', 'primary', missing ? `Выберите причину (${missing})` : `Отметить: ${chosen.length}`);
+    go.disabled = !chosen.length || missing > 0;
+    go.addEventListener('click', applyReply);
+    const row = el('div', 'bar');
+    row.append(go);
+    card.append(row);
+  }
+  box.append(card);
+}
+
+$('paste').addEventListener('click', openReply);
 $('import').addEventListener('click', importWord);
 $('edit').addEventListener('click', () => {
   editing = !editing;

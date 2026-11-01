@@ -484,6 +484,172 @@
       + `за 30 дней, последний ${dm(a.last)}`;
   }
 
+  // ---------- Ответ из WhatsApp → отметки ----------
+  // Классные руководители отвечают в группе как попало: «4 кл: Иванов, Петрова болеют», «Котов Илья — соревнования».
+  // Разбор на устройстве, без нейросети: ищем учеников журнала по фамилии и имени (с падежами),
+  // причину — по словам рядом. Учитель проверяет результат перед сохранением.
+
+  /** Слова-признаки причин. Порядок важен: «без уважительной» раньше «уважительной». */
+  const REASON_WORDS = [
+    ['absent', /без\s+уваж|неуваж|прогул|не\s+знаю\s+почему|причина\s+неизвестн|без\s+причин/],
+    ['family', /семейн|с\/о(?![а-я])|по\s+сем/],
+    ['free', /освобожд|освоб|(^|[^а-я])осв([^а-я]|$)/],
+    ['sick', /(^|[^а-я])бол(е|ё)?(ет|ют|ен|ьн|еть|ел|ела|ели|еют)|болезн|заболе|орви|грипп|температур|простуд|больничн|у\s+врача|в\s+больниц/],
+    ['other', /соревнован|олимпиад|конкурс|санатор|сборы|выступлен|экскурси|лагер/],
+  ];
+  const ALL_PRESENT = /вс[её]\s+(на\s+месте|присутству|пришли|в\s+школе)|нет\s+отсутствующ|отсутствующих\s+нет|все\s+есть/;
+  /** Слова с большой буквы, которые не имена (чтобы не жаловаться «не нашёл»). */
+  const NOT_NAMES = new Set(['здравствуйте', 'добрый', 'доброе', 'день', 'утро', 'класс', 'кл', 'болеет', 'болеют', 'болен',
+    'больна', 'отсутствуют', 'отсутствует', 'отсутствующих', 'нет', 'все', 'всё', 'на', 'месте', 'без', 'причины',
+    'по', 'семейным', 'обстоятельствам', 'освобождение', 'спасибо', 'итого', 'из', 'не', 'пришли', 'пришёл',
+    'пришел', 'пришла', 'сегодня', 'вчера', 'завтра', 'ученики', 'ученик', 'ученица', 'уважительной', 'причине',
+    'соревнования', 'олимпиада', 'справка', 'орви', 'другое', 'пожалуйста', 'напишите', 'хорошо', 'ок', 'да', 'температура']);
+
+  const norm = (w) => String(w || '').toLowerCase().replace(/ё/g, 'е');
+
+  /** Одно и то же слово в другом падеже: «Иванов» — «Иванова», «Ивановой»; «Никита» — «Никиты». 2 — точно, 1 — похоже. */
+  function sameWord(t, w) {
+    if (t === w) return 2;
+    if (t.length < 3 || w.length < 3) return 0;
+    let i = 0;
+    while (i < t.length && i < w.length && t[i] === w[i]) i++;
+    const need = Math.max(3, Math.max(t.length, w.length) - 3);
+    return i >= need && i >= Math.min(t.length, w.length) - 2 && Math.abs(t.length - w.length) <= 3 ? 1 : 0;
+  }
+
+  /** «4 кл», «4 класс», «4А:», «в 4-м классе» → номер (и буква) класса; '' — не указан. */
+  function classMention(line) {
+    const m = /(?:^|[^\d])(\d{1,2})\s*(?:-?(?:й|м|го|ом))?\s*[«"]?([А-ЯЁ])?[»"]?\s*(?:кл(?:асс[а-я]*)?(?![а-я]))/i.exec(line)
+      || /^\s*(\d{1,2})\s*[«"]?([А-ЯЁ])?[»"]?\s*[:\-–—)]/i.exec(line)
+      // «4а Иванов, Петров» — номер с буквой в начале строки
+      || /^\s*(\d{1,2})\s*[«"]?([А-ЯЁ])[»"]?(?![а-яё])/i.exec(line);
+    if (!m) return '';
+    const letter = m[2] && !/^[кК]$/.test(m[2]) ? m[2].toUpperCase() : '';
+    return m[1] + letter;
+  }
+
+  /** Классы журнала, о которых говорит упоминание; без упоминания — все. */
+  function classesFor(j, mention) {
+    if (!mention) return sortedClasses(j);
+    const n = /^\d+/.exec(mention)[0];
+    const letter = norm(mention.slice(n.length));
+    const all = sortedClasses(j).filter((c) => (/^(\d+)/.exec(c.name) || [])[1] === n);
+    const exact = letter ? all.filter((c) => new RegExp(`^\\d+\\s*${letter}(?![а-я])`).test(norm(c.name))) : [];
+    return exact.length ? exact : all;
+  }
+
+  function reasonOf(line) {
+    const t = norm(line);
+    for (const [id, re] of REASON_WORDS) if (re.test(t)) return id;
+    return '';
+  }
+
+  /** Ученики, которых называет кусок текста (несколько — если не понять, кто именно). */
+  function findStudents(part, classes, classKnown) {
+    const tokens = (part.match(/[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)?/g) || []).map(norm);
+    const scored = [];
+    for (const c of classes) {
+      for (const s of sortedStudents(c)) {
+        const [sur, first] = norm(s.name).split(' ');
+        let sScore = 0;
+        let fScore = 0;
+        for (const t of tokens) {
+          const sw = sameWord(t, sur);
+          sScore = Math.max(sScore, sw === 2 ? 4 : sw ? 3 : 0);
+          if (first) fScore = Math.max(fScore, sameWord(t, first) ? 2 : t.length === 1 && t === first[0] ? 1 : 0);
+        }
+        // только по имени — если класс назван и такое имя в нём одно
+        const score = sScore ? sScore + fScore : (classKnown && fScore === 2 ? 2 : 0);
+        if (score) scored.push({ s, c, score, bySurname: sScore > 0 });
+      }
+    }
+    if (!scored.length) return [];
+    const best = Math.max(...scored.map((x) => x.score));
+    const top = scored.filter((x) => x.score === best);
+    if (!top[0].bySurname && top.length > 1) return [];
+    return top;
+  }
+
+  /**
+   * Текст ответа (можно сразу несколько сообщений, скопированных из WhatsApp) →
+   * { items: [{ sid, name, cls, reason, note, line, options? }], present: ['4 класс'], unknown: ['Сидоров'] }.
+   * reason '' — причина не указана (учитель выберет сам); options — несколько учеников, подходящих под написанное.
+   */
+  function parseReply(j, text) {
+    const items = [];
+    const present = [];
+    const unknown = [];
+    let mentioned = '';
+    let forward = '';
+    let pending = [];
+    const lines = String(text || '')
+      // заголовок скопированного сообщения: «[01.11.26, 09:05] Анна Петровна: …»
+      .replace(/^\s*\[[^\]\n]{4,40}\]\s*[^:\n]{1,60}:[ \t]?/gm, '')
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const line of lines) {
+      const mention = classMention(line);
+      if (mention) {
+        mentioned = mention;
+        forward = '';
+        pending = [];
+      }
+      const classes = classesFor(j, mentioned);
+      const reason = reasonOf(line);
+      if (mentioned && ALL_PRESENT.test(norm(line))) {
+        for (const c of classes) if (!present.includes(c.name)) present.push(c.name);
+      }
+      const found = [];
+      const missed = [];
+      // имена разделены запятыми, «и», тире, точкой с запятой
+      const text1 = line.replace(/(?:^|[^\d])\d{1,2}\s*[«"]?[А-ЯЁ]?[»"]?\s*кл(?:асс[а-я]*)?\.?/gi, ' ')
+        .replace(/^\s*\d{1,2}\s*[«"]?[А-ЯЁ]?[»"]?(?![а-яё])/i, ' ');
+      for (const part of text1.split(/[,;:()]|\s+и\s+|\s+[—–-]\s+/)) {
+        const top = findStudents(part, classes, !!mentioned);
+        if (top.length) {
+          found.push(top);
+        } else {
+          for (const w of part.match(/[А-ЯЁ][а-яё]{2,}/g) || []) {
+            if (!NOT_NAMES.has(norm(w)) && !reasonOf(w)) missed.push(w);
+          }
+        }
+      }
+      const lineItems = [];
+      for (const top of found) {
+        const one = top.length === 1 ? top[0] : null;
+        if (one && items.some((x) => x.sid === one.s.id)) continue;
+        const it = {
+          sid: one ? one.s.id : '',
+          name: one ? one.s.name : top.map((x) => x.s.name).join(' или '),
+          cls: one ? one.c.name : '',
+          reason: reason || forward,
+          note: '',
+          line,
+        };
+        if (!one) it.options = top.map((x) => ({ sid: x.s.id, name: x.s.name, cls: x.c.name }));
+        items.push(it);
+        lineItems.push(it);
+      }
+      if (lineItems.length) {
+        if (!reason && !forward) pending = pending.concat(lineItems);
+        unknown.push(...missed);
+      } else if (missed.length) {
+        // похоже на ученика, которого нет в журнале («Сидоров болеет») — покажем учителю
+        unknown.push(...missed);
+      } else if (reason) {
+        // строка только с причиной: относится к названным выше без причины и к тем, кто ниже
+        for (const it of pending) it.reason = reason;
+        pending = [];
+        forward = reason;
+      }
+    }
+    for (const it of items) {
+      if (it.reason === 'other') it.note = it.line.length > 80 ? it.line.slice(0, 80) + '…' : it.line;
+    }
+    return { items, present, unknown: [...new Set(unknown)] };
+  }
+
   // ---------- Выгрузка в Word ----------
 
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -590,5 +756,6 @@
     setClock, reasonById, empty, normalize, merge, same, rename, addDays, isSchoolDay, setSchoolDay, months, monthTitle, defaultMonth, monthColumns, schoolDays,
     getMark, setMark, markCode, monthStats, fixName, classGenitive, sortedClasses, sortedStudents, addClass, addStudent,
     removeStudent, removeClass, parseTemplate, importClasses, alerts, alertText, documentXml, docxFiles, fileName, plural,
+    parseReply,
   };
 }));

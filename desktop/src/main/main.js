@@ -828,6 +828,16 @@ function startSmoke() {
       if (!attendanceWin) { smokeErrors.push('attendance window not opened'); return; }
       const rows = await attendanceWin.webContents.executeJavaScript("document.querySelectorAll('tbody tr').length", true);
       if (rows !== 2) smokeErrors.push(`attendance window: ${rows} rows`);
+      // ответ из WhatsApp: вставить текст, разобрать — должен найтись один ученик
+      const found = await attendanceWin.webContents.executeJavaScript(`(() => {
+        document.getElementById('paste').click();
+        const t = document.getElementById('replyText');
+        t.value = '4 кл: Ученик Второй болеет';
+        t.dispatchEvent(new Event('input'));
+        [...document.querySelectorAll('.reply button')].find((b) => b.textContent === 'Разобрать').click();
+        return document.querySelectorAll('.reply .row-item').length;
+      })()`, true);
+      if (found !== 1) smokeErrors.push(`attendance reply: ${found} rows`);
       const file = path.join(app.getPath('userData'), 'smoke-attendance.docx');
       await attendance.exportDocx('2026-11', file);
       const doc = await require('jszip').loadAsync(require('fs').readFileSync(file));

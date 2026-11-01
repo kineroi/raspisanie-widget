@@ -213,6 +213,73 @@ public class AttendanceTest {
         assertEquals("Посещаемость — Ноябрь 2026.docx", Attendance.fileName("2026-11"));
     }
 
+    /** Выдуманная школа с теми же трудностями, что в настоящей: одна фамилия в разных классах, брат и сестра. */
+    private static JSONObject school() {
+        JSONObject j = Attendance.empty();
+        add(j, "3 класс", "Котов Николай Петрович", "Котова Алиса Денисовна");
+        add(j, "4 класс", "Котов Александр Петрович", "Лис Кирилл Сергеевич", "Иванова Анна Петровна");
+        add(j, "5 класс", "Котов Сергей Денисович");
+        add(j, "6 класс", "Лис Евгений Сергеевич");
+        return j;
+    }
+
+    private static void add(JSONObject j, String cls, String... names) {
+        JSONObject c = Attendance.addClass(j, cls);
+        for (String n : names) Attendance.addStudent(c, n);
+    }
+
+    /** «Фамилия Имя · класс · причина» по каждому найденному. */
+    private static List<String> pick(Attendance.Reply r) {
+        List<String> out = new java.util.ArrayList<>();
+        for (Attendance.ReplyItem it : r.items) {
+            String[] p = it.name.split(" ");
+            out.add(p[0] + " " + p[1] + " · " + it.cls + " · " + it.reason);
+        }
+        return out;
+    }
+
+    @Test
+    public void replyClassAndReason() {
+        Attendance.Reply r = Attendance.parseReply(school(), "4 кл: Котов, Иванова болеют");
+        assertEquals(Arrays.asList("Котов Александр · 4 класс · sick", "Иванова Анна · 4 класс · sick"), pick(r));
+        assertEquals(0, r.unknown.size());
+    }
+
+    @Test
+    public void replySameSurnamesAndCases() {
+        JSONObject j = school();
+        assertEquals(Arrays.asList("Котов Николай · 3 класс · sick"), pick(Attendance.parseReply(j, "Котов Николай болеет")));
+        Attendance.Reply other = Attendance.parseReply(j, "Котова Алиса — соревнования");
+        assertEquals(Arrays.asList("Котова Алиса · 3 класс · other"), pick(other));
+        assertEquals("Котова Алиса — соревнования", other.items.get(0).note);
+        assertEquals(Arrays.asList("Котов Сергей · 5 класс · sick"), pick(Attendance.parseReply(j, "у Котова Сергея температура")));
+        Attendance.Reply amb = Attendance.parseReply(j, "Котов отсутствует");
+        assertEquals(1, amb.items.size());
+        assertEquals("", amb.items.get(0).sid);
+        assertEquals("", amb.items.get(0).reason);
+        assertEquals(3, amb.items.get(0).options.size());
+    }
+
+    @Test
+    public void replyMessagesPresentUnknown() {
+        String text = "[01.11.26, 09:05] Мария Ивановна: 6 класс\nЛис\nпо семейным\n"
+                + "[01.11.26, 09:07] Ольга Петровна: 3 класс все на месте\n"
+                + "[01.11.26, 09:10] Нина Сергеевна: 5 кл: Сергей без уважительной причины\n"
+                + "Сидоров болеет";
+        Attendance.Reply r = Attendance.parseReply(school(), text);
+        assertEquals(Arrays.asList("Лис Евгений · 6 класс · family", "Котов Сергей · 5 класс · absent"), pick(r));
+        assertEquals(Arrays.asList("3 класс"), r.present);
+        assertEquals(Arrays.asList("Сидоров"), r.unknown);
+    }
+
+    @Test
+    public void replyClassLetterAndReasonFirst() {
+        assertEquals(Arrays.asList("Иванова Анна · 4 класс · free", "Лис Кирилл · 4 класс · free"),
+                pick(Attendance.parseReply(school(), "4а Иванова, Лис - освобождение")));
+        assertEquals(Arrays.asList("Лис Кирилл · 4 класс · sick", "Иванова Анна · 4 класс · sick"),
+                pick(Attendance.parseReply(school(), "4 класс\nБолеют:\nЛис Кирилл\nИванова")));
+    }
+
     private static String p(String t) {
         return "<w:p><w:r><w:t xml:space=\"preserve\">" + t + "</w:t></w:r></w:p>";
     }

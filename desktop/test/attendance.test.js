@@ -185,3 +185,61 @@ test('выгрузка в Word: таблица класса, коды, итог�
   assert.equal((header.match(/<w:tc>/g) || []).length, 25);
   assert.equal(T.fileName('2026-11'), 'Посещаемость — Ноябрь 2026.docx');
 });
+
+/** Выдуманная школа с теми же трудностями, что в настоящей: одна фамилия в разных классах, брат и сестра. */
+function school() {
+  const j = T.empty();
+  const add = (cls, names) => {
+    const c = T.addClass(j, cls);
+    for (const n of names) T.addStudent(c, n);
+  };
+  add('3 класс', ['Котов Николай Петрович', 'Котова Алиса Денисовна']);
+  add('4 класс', ['Котов Александр Петрович', 'Лис Кирилл Сергеевич', 'Иванова Анна Петровна']);
+  add('5 класс', ['Котов Сергей Денисович']);
+  add('6 класс', ['Лис Евгений Сергеевич']);
+  return j;
+}
+
+const pick = (r) => r.items.map((x) => [x.name.split(' ').slice(0, 2).join(' '), x.cls, x.reason]);
+
+test('ответ из WhatsApp: класс, несколько учеников, причина', () => {
+  const r = T.parseReply(school(), '4 кл: Котов, Иванова болеют');
+  assert.deepEqual(pick(r), [['Котов Александр', '4 класс', 'sick'], ['Иванова Анна', '4 класс', 'sick']]);
+  assert.deepEqual(r.unknown, []);
+});
+
+test('ответ из WhatsApp: одинаковые фамилии различаются по имени, падежи', () => {
+  const j = school();
+  assert.deepEqual(pick(T.parseReply(j, 'Котов Николай болеет')), [['Котов Николай', '3 класс', 'sick']]);
+  assert.deepEqual(pick(T.parseReply(j, 'Котова Алиса — соревнования')), [['Котова Алиса', '3 класс', 'other']]);
+  assert.equal(T.parseReply(j, 'Котова Алиса — соревнования').items[0].note, 'Котова Алиса — соревнования');
+  // «у Котова Сергея температура»
+  assert.deepEqual(pick(T.parseReply(j, 'у Котова Сергея температура')), [['Котов Сергей', '5 класс', 'sick']]);
+  // только фамилия и класс не назван — непонятно, кто именно
+  const amb = T.parseReply(j, 'Котов отсутствует');
+  assert.equal(amb.items.length, 1);
+  assert.equal(amb.items[0].sid, '');
+  assert.equal(amb.items[0].reason, '');
+  assert.deepEqual(amb.items[0].options.map((o) => o.cls), ['3 класс', '4 класс', '5 класс']);
+});
+
+test('ответ из WhatsApp: несколько сообщений, причина отдельной строкой, все на месте, незнакомые', () => {
+  const text = '[01.11.26, 09:05] Мария Ивановна: 6 класс\nЛис\nпо семейным\n'
+    + '[01.11.26, 09:07] Ольга Петровна: 3 класс все на месте\n'
+    + '[01.11.26, 09:10] Нина Сергеевна: 5 кл: Сергей без уважительной причины\n'
+    + 'Сидоров болеет';
+  const r = T.parseReply(school(), text);
+  assert.deepEqual(pick(r), [['Лис Евгений', '6 класс', 'family'], ['Котов Сергей', '5 класс', 'absent']]);
+  assert.deepEqual(r.present, ['3 класс']);
+  assert.deepEqual(r.unknown, ['Сидоров']);
+});
+
+test('ответ из WhatsApp: класс с буквой без слова «класс»', () => {
+  const r = T.parseReply(school(), '4а Иванова, Лис - освобождение');
+  assert.deepEqual(pick(r), [['Иванова Анна', '4 класс', 'free'], ['Лис Кирилл', '4 класс', 'free']]);
+});
+
+test('ответ из WhatsApp: причина перед списком', () => {
+  const r = T.parseReply(school(), '4 класс\nБолеют:\nЛис Кирилл\nИванова');
+  assert.deepEqual(pick(r), [['Лис Кирилл', '4 класс', 'sick'], ['Иванова Анна', '4 класс', 'sick']]);
+});

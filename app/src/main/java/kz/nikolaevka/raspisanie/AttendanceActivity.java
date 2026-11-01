@@ -153,7 +153,8 @@ public class AttendanceActivity extends Activity {
                         : "Синхронизировано с компьютером · " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
                 // новое с компьютера: берём сохранённое (в нём уже объединены и наши отметки)
                 if (ch) journal = Attendance.load(this);
-                render();
+                // пока вставляют ответ из WhatsApp, экран не перерисовываем — иначе пропадёт клавиатура
+                if (replyText == null) render();
             });
         }).start();
     }
@@ -192,6 +193,7 @@ public class AttendanceActivity extends Activity {
             List<Attendance.Alert> alerts = Attendance.alerts(journal, today());
             if (!alerts.isEmpty() && !editing) col.addView(alertsCard(alerts));
             if (!editing) col.addView(dateCard());
+            if (!editing && replyText != null) col.addView(replyCard());
             boolean school = Attendance.isSchoolDay(journal, date);
             for (JSONObject cls : classes) col.addView(classCard(cls, school || editing));
             if (editing) {
@@ -304,6 +306,11 @@ public class AttendanceActivity extends Activity {
             render();
         });
         card.addView(toggle, margins(dp(8), dp(38)));
+        if (replyText == null) {
+            Button wa = Ui.button(this, "Ответ из WhatsApp", true);
+            wa.setOnClickListener(v -> openReply());
+            card.addView(wa, margins(dp(8), dp(42)));
+        }
         return card;
     }
 
@@ -381,6 +388,195 @@ public class AttendanceActivity extends Activity {
             case "absent": return new int[]{R.color.a_red, R.color.a_red_soft};
             default: return new int[]{R.color.a_muted, R.color.a_bg};
         }
+    }
+
+    // ---------- Ответ из WhatsApp ----------
+    // Учитель копирует ответы классных руководителей, приложение находит учеников и причины,
+    // учитель проверяет галочки и нажимает «Отметить». Разбор — на телефоне, без нейросети.
+
+    /** Строка проверки: найденный ученик (или один из подходящих, если непонятно, кто именно). */
+    private static final class ReplyRow {
+        String sid, name, cls, reason, note, line, group;
+        boolean on;
+    }
+
+    /** null — панель закрыта. */
+    private String replyText = null;
+    private List<ReplyRow> replyRows = null;
+    private List<String> replyPresent = new java.util.ArrayList<>(), replyUnknown = new java.util.ArrayList<>();
+
+    private void openReply() {
+        replyText = "";
+        replyRows = null;
+        // если только что скопировали ответ в WhatsApp — сразу подставим
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip().getItemCount() > 0) {
+            CharSequence t = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+            if (t != null && !t.toString().equals(DailyMessage.text(this))) replyText = t.toString();
+        }
+        if (!replyText.isEmpty()) parseReply();
+        render();
+    }
+
+    private void parseReply() {
+        Attendance.Reply r = Attendance.parseReply(journal, replyText);
+        replyRows = new java.util.ArrayList<>();
+        for (Attendance.ReplyItem it : r.items) {
+            if (!it.sid.isEmpty()) {
+                replyRows.add(row(it.sid, it.name, it.cls, it, null, true));
+            } else {
+                // непонятно, кто именно: показываем всех подходящих без галочек — учитель отметит нужных
+                for (String[] o : it.options) replyRows.add(row(o[0], o[1], o[2], it, it.name, false));
+            }
+        }
+        replyPresent = r.present;
+        replyUnknown = r.unknown;
+    }
+
+    private static ReplyRow row(String sid, String name, String cls, Attendance.ReplyItem it, String group, boolean on) {
+        ReplyRow x = new ReplyRow();
+        x.sid = sid;
+        x.name = name;
+        x.cls = cls;
+        x.reason = it.reason;
+        x.note = it.note;
+        x.line = it.line;
+        x.group = group;
+        x.on = on;
+        return x;
+    }
+
+    private void applyReply() {
+        int n = 0;
+        for (ReplyRow x : replyRows) {
+            if (!x.on) continue;
+            Attendance.setMark(journal, date, x.sid, x.reason, "other".equals(x.reason) ? x.note : null);
+            n++;
+        }
+        replyText = null;
+        replyRows = null;
+        persist();
+        render();
+        toast("Отмечено отсутствующих: " + n + " (" + Attendance.dm(date) + ").");
+    }
+
+    private View replyCard() {
+        LinearLayout card = Ui.card(this);
+        card.addView(text("Ответ из WhatsApp", 18, c(R.color.a_text), 500));
+        card.addView(text("Скопируйте в WhatsApp ответы классных руководителей (можно несколько сообщений сразу) "
+                + "и вставьте сюда. Отметки встанут на " + Attendance.dm(date) + " — день выбирается стрелками выше.",
+                13, c(R.color.a_muted), 400), margins(dp(4)));
+        if (!Attendance.isSchoolDay(journal, date)) {
+            card.addView(text("Выбран не учебный день — проверьте дату.", 13, c(R.color.a_orange), 500), margins(dp(4)));
+        }
+        EditText box = Ui.box(this, "Например:\n4 кл: Иванов, Петрова болеют\n6 класс — все на месте", 4);
+        box.setText(replyText);
+        box.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                replyText = s.toString();
+            }
+        });
+        card.addView(box, margins(dp(10)));
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        Button parse = Ui.button(this, replyRows == null ? "Разобрать" : "Разобрать заново", replyRows == null);
+        parse.setOnClickListener(v -> {
+            parseReply();
+            render();
+        });
+        bar.addView(parse, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        Button close = Ui.button(this, "Закрыть", false);
+        close.setOnClickListener(v -> {
+            replyText = null;
+            replyRows = null;
+            render();
+        });
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(42));
+        cp.leftMargin = dp(8);
+        bar.addView(close, cp);
+        card.addView(bar, margins(dp(10)));
+
+        if (replyRows == null) return card;
+        if (replyRows.isEmpty()) card.addView(text("Отсутствующих в тексте не нашлось.", 13, c(R.color.a_muted), 400), margins(dp(10)));
+        String lastGroup = null;
+        int chosen = 0, missing = 0;
+        for (ReplyRow x : replyRows) {
+            if (x.group != null && !x.group.equals(lastGroup)) {
+                card.addView(text("Непонятно, кто именно («" + x.line + "») — отметьте нужных:", 12, c(R.color.a_orange), 500),
+                        margins(dp(12)));
+            }
+            lastGroup = x.group;
+            if (x.on) {
+                chosen++;
+                if (x.reason.isEmpty()) missing++;
+            }
+            card.addView(replyRowView(x));
+        }
+        if (!replyPresent.isEmpty()) {
+            card.addView(text("Все на месте: " + String.join(", ", replyPresent) + ".", 13, c(R.color.a_green), 400), margins(dp(8)));
+        }
+        if (!replyUnknown.isEmpty()) {
+            card.addView(text("Нет в журнале: " + String.join(", ", replyUnknown) + " — может быть, опечатка.", 13,
+                    c(R.color.a_orange), 400), margins(dp(8)));
+        }
+        Button go = Ui.button(this, missing > 0 ? "Выберите причину (" + missing + ")" : "Отметить: " + chosen, true);
+        go.setEnabled(chosen > 0 && missing == 0);
+        go.setOnClickListener(v -> applyReply());
+        card.addView(go, margins(dp(12), dp(46)));
+        return card;
+    }
+
+    private View replyRowView(ReplyRow x) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(6), 0, dp(6));
+        android.widget.CheckBox cb = Ui.checkBox(this, x.name + " · " + x.cls, x.on);
+        cb.setOnCheckedChangeListener((v, on) -> {
+            x.on = on;
+            render();
+        });
+        row.addView(cb, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Attendance.Reason r = Attendance.reasonById(x.reason);
+        TextView reason = r != null ? badge(x.reason) : text("Причина?", 13, c(R.color.a_red), 600);
+        if (r == null) {
+            reason.setPadding(dp(8), dp(4), dp(8), dp(4));
+            reason.setBackground(Ui.round(this, c(R.color.a_red_soft), 8));
+        }
+        reason.setOnClickListener(v -> chooseReason(x));
+        row.addView(reason);
+        return row;
+    }
+
+    private void chooseReason(ReplyRow x) {
+        String[] items = new String[Attendance.REASONS.length];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = Attendance.REASONS[i].code.toUpperCase(new Locale("ru")) + " — " + Attendance.REASONS[i].name;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(x.name)
+                .setItems(items, (dlg, which) -> {
+                    x.reason = Attendance.REASONS[which].id;
+                    x.on = true;
+                    if ("other".equals(x.reason)) {
+                        askText("Другое — причина", "Например: на соревнованиях", x.note, t -> {
+                            x.note = t;
+                            render();
+                        });
+                    }
+                    render();
+                })
+                .show();
     }
 
     // ---------- Диалоги ----------

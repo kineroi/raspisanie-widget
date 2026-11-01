@@ -806,6 +806,231 @@ final class Attendance {
                 + " без уважительной причины за 30 дней, последний " + dm(a.last);
     }
 
+    // ---------- Ответ из WhatsApp → отметки (как parseReply в desktop/src/shared/attendance.js) ----------
+    // Разбор на телефоне, без нейросети: ученики журнала по фамилии и имени (с падежами), причина — по словам рядом.
+
+    private static final int CI = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
+
+    /** Слова-признаки причин. Порядок важен: «без уважительной» раньше остальных. */
+    private static final String[][] REASON_WORDS = {
+            {"absent", "без\\s+уваж|неуваж|прогул|не\\s+знаю\\s+почему|причина\\s+неизвестн|без\\s+причин"},
+            {"family", "семейн|с/о(?![а-я])|по\\s+сем"},
+            {"free", "освобожд|освоб|(^|[^а-я])осв([^а-я]|$)"},
+            {"sick", "(^|[^а-я])бол(е|ё)?(ет|ют|ен|ьн|еть|ел|ела|ели|еют)|болезн|заболе|орви|грипп|температур|простуд|больничн"
+                    + "|у\\s+врача|в\\s+больниц"},
+            {"other", "соревнован|олимпиад|конкурс|санатор|сборы|выступлен|экскурси|лагер"},
+    };
+    private static final Pattern[] REASON_RE = new Pattern[REASON_WORDS.length];
+
+    static {
+        for (int i = 0; i < REASON_WORDS.length; i++) REASON_RE[i] = Pattern.compile(REASON_WORDS[i][1]);
+    }
+
+    private static final Pattern ALL_PRESENT = Pattern.compile(
+            "вс[её]\\s+(на\\s+месте|присутству|пришли|в\\s+школе)|нет\\s+отсутствующ|отсутствующих\\s+нет|все\\s+есть");
+    private static final List<String> NOT_NAMES = Arrays.asList("здравствуйте", "добрый", "доброе", "день", "утро", "класс",
+            "кл", "болеет", "болеют", "болен", "больна", "отсутствуют", "отсутствует", "отсутствующих", "нет", "все", "всё", "на",
+            "месте", "без", "причины", "по", "семейным", "обстоятельствам", "освобождение", "спасибо", "итого", "из", "не",
+            "пришли", "пришёл", "пришел", "пришла", "сегодня", "вчера", "завтра", "ученики", "ученик", "ученица",
+            "уважительной", "причине", "соревнования", "олимпиада", "справка", "орви", "другое", "пожалуйста", "напишите",
+            "хорошо", "ок", "да", "температура");
+    private static final Pattern CLASS_1 = Pattern.compile(
+            "(?:^|[^\\d])(\\d{1,2})\\s*(?:-?(?:й|м|го|ом))?\\s*[«\"]?([А-ЯЁ])?[»\"]?\\s*(?:кл(?:асс[а-я]*)?(?![а-я]))", CI);
+    private static final Pattern CLASS_2 = Pattern.compile("^\\s*(\\d{1,2})\\s*[«\"]?([А-ЯЁ])?[»\"]?\\s*[:\\-–—)]", CI);
+    private static final Pattern CLASS_3 = Pattern.compile("^\\s*(\\d{1,2})\\s*[«\"]?([А-ЯЁ])[»\"]?(?![а-яё])", CI);
+    private static final Pattern CLASS_STRIP_1 = Pattern.compile("(?:^|[^\\d])\\d{1,2}\\s*[«\"]?[А-ЯЁ]?[»\"]?\\s*кл(?:асс[а-я]*)?\\.?", CI);
+    private static final Pattern CLASS_STRIP_2 = Pattern.compile("^\\s*\\d{1,2}\\s*[«\"]?[А-ЯЁ]?[»\"]?(?![а-яё])", CI);
+    private static final Pattern HEADER = Pattern.compile("(?m)^\\s*\\[[^\\]\\n]{4,40}\\]\\s*[^:\\n]{1,60}:[ \\t]?");
+    private static final Pattern WORD = Pattern.compile("[А-Яа-яЁё]+(?:-[А-Яа-яЁё]+)?");
+    private static final Pattern CAPITAL = Pattern.compile("[А-ЯЁ][а-яё]{2,}");
+
+    private static String norm(String w) {
+        return (w == null ? "" : w).toLowerCase(RU).replace('ё', 'е');
+    }
+
+    /** Одно и то же слово в другом падеже: 2 — точно, 1 — похоже, 0 — нет. */
+    static int sameWord(String t, String w) {
+        if (t.equals(w)) return 2;
+        if (t.length() < 3 || w.length() < 3) return 0;
+        int i = 0;
+        while (i < t.length() && i < w.length() && t.charAt(i) == w.charAt(i)) i++;
+        int need = Math.max(3, Math.max(t.length(), w.length()) - 3);
+        return i >= need && i >= Math.min(t.length(), w.length()) - 2 && Math.abs(t.length() - w.length()) <= 3 ? 1 : 0;
+    }
+
+    /** «4 кл», «4 класс», «4А:», «4а Иванов» → номер (и буква) класса; "" — не указан. */
+    static String classMention(String line) {
+        for (Pattern p : new Pattern[]{CLASS_1, CLASS_2, CLASS_3}) {
+            Matcher m = p.matcher(line);
+            if (!m.find()) continue;
+            String letter = m.group(2) != null && !m.group(2).equalsIgnoreCase("к") ? m.group(2).toUpperCase(RU) : "";
+            return m.group(1) + letter;
+        }
+        return "";
+    }
+
+    private static List<JSONObject> classesFor(JSONObject j, String mention) {
+        if (mention.isEmpty()) return sortedClasses(j);
+        Matcher d = Pattern.compile("^\\d+").matcher(mention);
+        d.find();
+        String n = d.group(), letter = norm(mention.substring(n.length()));
+        List<JSONObject> all = new ArrayList<>(), exact = new ArrayList<>();
+        for (JSONObject c : sortedClasses(j)) {
+            Matcher m = Pattern.compile("^(\\d+)").matcher(c.optString("name"));
+            if (m.find() && m.group(1).equals(n)) all.add(c);
+        }
+        if (!letter.isEmpty()) {
+            Pattern p = Pattern.compile("^\\d+\\s*" + Pattern.quote(letter) + "(?![а-я])");
+            for (JSONObject c : all) if (p.matcher(norm(c.optString("name"))).find()) exact.add(c);
+        }
+        return exact.isEmpty() ? all : exact;
+    }
+
+    static String reasonOf(String line) {
+        String t = norm(line);
+        for (int i = 0; i < REASON_RE.length; i++) if (REASON_RE[i].matcher(t).find()) return REASON_WORDS[i][0];
+        return "";
+    }
+
+    private static final class Hit {
+        final JSONObject s, c;
+        final int score;
+        final boolean bySurname;
+
+        Hit(JSONObject s, JSONObject c, int score, boolean bySurname) {
+            this.s = s;
+            this.c = c;
+            this.score = score;
+            this.bySurname = bySurname;
+        }
+    }
+
+    private static List<Hit> findStudents(String part, List<JSONObject> classes, boolean classKnown) {
+        List<String> tokens = new ArrayList<>();
+        Matcher w = WORD.matcher(part);
+        while (w.find()) tokens.add(norm(w.group()));
+        List<Hit> scored = new ArrayList<>();
+        for (JSONObject c : classes) {
+            for (JSONObject s : sortedStudents(c)) {
+                String[] p = norm(s.optString("name")).split(" ");
+                String sur = p[0], first = p.length > 1 ? p[1] : "";
+                int sScore = 0, fScore = 0;
+                for (String t : tokens) {
+                    int sw = sameWord(t, sur);
+                    sScore = Math.max(sScore, sw == 2 ? 4 : sw == 1 ? 3 : 0);
+                    if (!first.isEmpty()) {
+                        fScore = Math.max(fScore, sameWord(t, first) > 0 ? 2
+                                : t.length() == 1 && t.charAt(0) == first.charAt(0) ? 1 : 0);
+                    }
+                }
+                // только по имени — если класс назван и такое имя в нём одно
+                int score = sScore > 0 ? sScore + fScore : (classKnown && fScore == 2 ? 2 : 0);
+                if (score > 0) scored.add(new Hit(s, c, score, sScore > 0));
+            }
+        }
+        if (scored.isEmpty()) return scored;
+        int best = 0;
+        for (Hit h : scored) best = Math.max(best, h.score);
+        List<Hit> top = new ArrayList<>();
+        for (Hit h : scored) if (h.score == best) top.add(h);
+        if (!top.get(0).bySurname && top.size() > 1) return new ArrayList<>();
+        return top;
+    }
+
+    /** Найденное в ответе. sid "" — непонятно, кто именно: тогда options — все подходящие. */
+    static final class ReplyItem {
+        String sid = "", name = "", cls = "", reason = "", note = "", line = "";
+        final List<String[]> options = new ArrayList<>(); // {sid, name, cls}
+    }
+
+    static final class Reply {
+        final List<ReplyItem> items = new ArrayList<>();
+        final List<String> present = new ArrayList<>();
+        final List<String> unknown = new ArrayList<>();
+    }
+
+    /** Текст ответов классных руководителей → кто отсутствует и почему (учитель проверяет перед сохранением). */
+    static Reply parseReply(JSONObject j, String text) {
+        Reply r = new Reply();
+        String mentioned = "", forward = "";
+        List<ReplyItem> pending = new ArrayList<>();
+        String clean = HEADER.matcher(text == null ? "" : text).replaceAll("");
+        for (String raw : clean.split("\\n+")) {
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+            String mention = classMention(line);
+            if (!mention.isEmpty()) {
+                mentioned = mention;
+                forward = "";
+                pending = new ArrayList<>();
+            }
+            List<JSONObject> classes = classesFor(j, mentioned);
+            String reason = reasonOf(line);
+            if (!mentioned.isEmpty() && ALL_PRESENT.matcher(norm(line)).find()) {
+                for (JSONObject c : classes) if (!r.present.contains(c.optString("name"))) r.present.add(c.optString("name"));
+            }
+            List<List<Hit>> found = new ArrayList<>();
+            List<String> missed = new ArrayList<>();
+            String text1 = CLASS_STRIP_2.matcher(CLASS_STRIP_1.matcher(line).replaceAll(" ")).replaceFirst(" ");
+            for (String part : text1.split("[,;:()]|\\s+и\\s+|\\s+[—–-]\\s+")) {
+                List<Hit> top = findStudents(part, classes, !mentioned.isEmpty());
+                if (!top.isEmpty()) {
+                    found.add(top);
+                } else {
+                    Matcher m = CAPITAL.matcher(part);
+                    while (m.find()) {
+                        if (!NOT_NAMES.contains(norm(m.group())) && reasonOf(m.group()).isEmpty()) missed.add(m.group());
+                    }
+                }
+            }
+            List<ReplyItem> lineItems = new ArrayList<>();
+            for (List<Hit> top : found) {
+                Hit one = top.size() == 1 ? top.get(0) : null;
+                if (one != null) {
+                    boolean dup = false;
+                    for (ReplyItem x : r.items) if (x.sid.equals(one.s.optString("id"))) dup = true;
+                    if (dup) continue;
+                }
+                ReplyItem it = new ReplyItem();
+                it.line = line;
+                it.reason = !reason.isEmpty() ? reason : forward;
+                if (one != null) {
+                    it.sid = one.s.optString("id");
+                    it.name = one.s.optString("name");
+                    it.cls = one.c.optString("name");
+                } else {
+                    List<String> names = new ArrayList<>();
+                    for (Hit h : top) {
+                        it.options.add(new String[]{h.s.optString("id"), h.s.optString("name"), h.c.optString("name")});
+                        names.add(h.s.optString("name"));
+                    }
+                    it.name = String.join(" или ", names);
+                }
+                r.items.add(it);
+                lineItems.add(it);
+            }
+            if (!lineItems.isEmpty()) {
+                if (reason.isEmpty() && forward.isEmpty()) pending.addAll(lineItems);
+                r.unknown.addAll(missed);
+            } else if (!missed.isEmpty()) {
+                // похоже на ученика, которого нет в журнале («Сидоров болеет») — покажем учителю
+                r.unknown.addAll(missed);
+            } else if (!reason.isEmpty()) {
+                // строка только с причиной: относится к названным выше без причины и к тем, кто ниже
+                for (ReplyItem it : pending) it.reason = reason;
+                pending = new ArrayList<>();
+                forward = reason;
+            }
+        }
+        for (ReplyItem it : r.items) {
+            if ("other".equals(it.reason)) it.note = it.line.length() > 80 ? it.line.substring(0, 80) + "…" : it.line;
+        }
+        List<String> uniq = new ArrayList<>(new java.util.LinkedHashSet<>(r.unknown));
+        r.unknown.clear();
+        r.unknown.addAll(uniq);
+        return r;
+    }
+
     // ---------- Выгрузка в Word ----------
 
     private static String esc(String s) {
