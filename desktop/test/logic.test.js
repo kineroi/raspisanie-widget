@@ -12,6 +12,8 @@ function lesson(start, end, cls, additional, theme, hw, cab) {
     scheduleUuid: `uuid-${cls.replace(' ', '')}-${start}`,
     homework: {
       body: hw,
+      // у урока без домашки BilimClass не даёт homeworkUuid — её надо создавать, а не изменять
+      homeworkUuid: hw ? `hw-${cls}-${start}` : null,
       files: cls === '3 А' ? [{ id: 77, name: 'card', extension: '.jpeg', link: 'https://x/y' }] : [],
     },
     cabinet: { number: cab },
@@ -62,6 +64,8 @@ test('разбор недели и объединение сдвоенных у�
   assert.equal(mon[1].title, '7А + 8А');
   assert.equal(L.homeworkSummary(mon[1]), 'ДЗ: 7А — ex. 1; 8А — ex. 2');
   assert.equal(mon[1].details[1].scheduleUuid, 'uuid-8А-09:00');
+  assert.equal(mon[1].details[1].hasHomework, true);
+  assert.equal(mon[3].details[0].hasHomework, false, '4А, 2 ноября — домашки ещё нет');
   assert.equal(mon[2].title, '5А + 6А');
   assert.equal(L.homeworkSummary(mon[2]), 'ДЗ: revision');
   const tue = days['2026-11-03'].lessons;

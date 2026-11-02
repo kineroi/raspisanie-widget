@@ -132,8 +132,21 @@ function cachedDays() {
   }
 }
 
-/** Сохранить домашку урока (как кнопка «Сохранить» на сайте): текст заменяет прежний, файлы добавляются. */
-async function saveHomework(token, school, eduYear, scheduleUuid, body, files) {
+/**
+ * Сохранить домашку урока (как кнопка «Сохранить» на сайте): текст заменяет прежний, файлы добавляются.
+ * Как на сайте: если домашки у урока ещё нет — создаём (POST), если есть — изменяем (POST + _method=PUT).
+ * Изменение несуществующей домашки BilimClass отклоняет с 404 — тогда пробуем создать.
+ */
+async function saveHomework(token, school, eduYear, scheduleUuid, body, files, exists) {
+  try {
+    await postHomework(token, school, eduYear, scheduleUuid, body, files, !!exists);
+  } catch (e) {
+    if (!(e instanceof HttpError) || e.code !== 404 || !exists) throw e;
+    await postHomework(token, school, eduYear, scheduleUuid, body, files, false);
+  }
+}
+
+async function postHomework(token, school, eduYear, scheduleUuid, body, files, update) {
   const boundary = '----RaspisanieBoundary' + Date.now();
   const parts = [];
   const field = (name, value) => parts.push(Buffer.from(
@@ -142,7 +155,7 @@ async function saveHomework(token, school, eduYear, scheduleUuid, body, files) {
   field('eduYear', eduYear);
   field('scheduleUuid', scheduleUuid);
   field('body', body);
-  field('_method', 'PUT');
+  if (update) field('_method', 'PUT');
   for (const f of files || []) {
     const name = String(f.name).replace(/["\r\n]/g, ' ');
     parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="files[]"; filename="${name}"\r\n` +

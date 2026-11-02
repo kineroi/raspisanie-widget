@@ -94,6 +94,8 @@
       homework: body.toLowerCase() === NO_HOMEWORK ? '' : body,
       cabinet: (l.cabinet && l.cabinet.number) ? String(l.cabinet.number) : '',
       scheduleUuid: l.scheduleUuid || l.scheduleId || '',
+      // есть ли уже домашка в BilimClass: от этого зависит, создавать её или изменять
+      hasHomework: !!(hw && hw.homeworkUuid),
       files,
     };
   }
@@ -114,6 +116,7 @@
       title,
       details: group.map((it) => ({
         cls: it.cls, theme: it.theme, homework: it.homework, scheduleUuid: it.scheduleUuid, files: it.files,
+        hasHomework: it.hasHomework,
       })),
     };
   }

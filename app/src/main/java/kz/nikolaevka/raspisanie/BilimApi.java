@@ -113,16 +113,28 @@ final class BilimApi {
     /**
      * Сохранить домашнее задание урока (как кнопка «Сохранить» на сайте).
      * Текст заменяет прежний, файлы добавляются к уже прикреплённым.
+     * Сайт изменяет существующую домашку (POST + _method=PUT), а если её ещё нет — создаёт (POST).
+     * Изменение несуществующей BilimClass отклоняет с 404 — тогда создаём.
      */
     static void saveHomework(String token, String schoolId, int eduYear, String scheduleUuid,
                              String body, java.util.List<Upload> files) throws IOException {
+        try {
+            postHomework(token, schoolId, eduYear, scheduleUuid, body, files, true);
+        } catch (HttpError e) {
+            if (e.code != 404) throw e;
+            postHomework(token, schoolId, eduYear, scheduleUuid, body, files, false);
+        }
+    }
+
+    private static void postHomework(String token, String schoolId, int eduYear, String scheduleUuid,
+                                     String body, java.util.List<Upload> files, boolean update) throws IOException {
         String boundary = "----RaspisanieBoundary" + System.nanoTime();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         formField(out, boundary, "schoolId", schoolId);
         formField(out, boundary, "eduYear", String.valueOf(eduYear));
         formField(out, boundary, "scheduleUuid", scheduleUuid);
         formField(out, boundary, "body", body);
-        formField(out, boundary, "_method", "PUT");
+        if (update) formField(out, boundary, "_method", "PUT");
         if (files != null) {
             for (Upload f : files) {
                 String head = "--" + boundary + "\r\n"

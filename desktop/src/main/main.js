@@ -682,9 +682,14 @@ ipcMain.handle('send-homework', async (_e, req) => {
     uploads.push({ name: String(f.name || 'file'), mime: String(f.mime || ''), data });
   }
   const done = [];
+  // есть ли у урока домашка в BilimClass — по последнему расписанию (создать или изменить)
+  const day = bilim.cachedDays()[String(date)];
+  const existing = new Set();
+  for (const l of (day && day.lessons) || []) for (const d of l.details || []) if (d.hasHomework) existing.add(d.scheduleUuid);
   try {
     for (const u of uuids || []) {
-      await bilim.withToken((token, school) => bilim.saveHomework(token, school, year, u.uuid, String(body), uploads));
+      await bilim.withToken((token, school) => bilim.saveHomework(token, school, year, u.uuid, String(body), uploads,
+        existing.has(u.uuid)));
       done.push(u.cls);
     }
   } catch (e) {
