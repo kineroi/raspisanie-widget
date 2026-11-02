@@ -212,6 +212,10 @@ function showMain() {
 }
 
 function openHomework(date, start) {
+  // к классному часу домашку не задают (BilimClass её и не примет)
+  const day = bilim.cachedDays()[String(date)];
+  const lesson = day && day.lessons.find((l) => l.start === start);
+  if (lesson && lesson.title.startsWith('Кл. час')) return;
   const key = `${date} ${start}`;
   const existing = homeworkWins.get(key);
   if (existing && !existing.isDestroyed()) {

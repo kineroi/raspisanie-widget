@@ -64,6 +64,20 @@ public class BilimDataTest {
             + "{\"date\":\"01.11.2026\",\"isHoliday\":false}],\"rows\":[]}}";
 
     @Test
+    public void classHourInNewFormat() throws Exception {
+        // со 2-й четверти BilimClass присылает классный час обычным предметом «Классный час»
+        String ch = lesson("08:30", "09:00", "9 А", false, "Безопасность в интернете", "", "6")
+                .replace("\"label\":\"Шетел тілі\"", "\"label\":\"Классный час\"");
+        String week = "{\"data\":{\"days\":[{\"date\":\"09.11.2026\",\"isHoliday\":false}],"
+                + "\"rows\":[{\"09.11.2026\":[" + ch + "]}]}}";
+        Schedule.Lesson l = BilimData.parseWeek(new JSONObject(week)).get(LocalDate.of(2026, 11, 9)).lessons.get(0);
+        assertEquals("Кл. час, 9А (каб. 6)", l.title);
+        assertTrue(BilimData.isClassHour("Сынып сағаты", false, ""));
+        assertTrue(BilimData.isClassHour("Шетел тілі", true, "Кл. час"));
+        assertTrue(!BilimData.isClassHour("Иностранный язык", false, "Классы предметов"));
+    }
+
+    @Test
     public void parsesAndGroupsLessons() throws Exception {
         Map<LocalDate, Schedule.Day> days = BilimData.parseWeek(new JSONObject(WEEK));
         assertEquals(7, days.size());

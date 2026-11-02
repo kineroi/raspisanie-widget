@@ -28,6 +28,7 @@ final class BilimData {
         LocalTime end;
         String cls;
         boolean additional;
+        boolean classHour;
         String subject;
         String theme;
         String homework;
@@ -99,6 +100,8 @@ final class BilimData {
         it.subject = subj == null ? "" : str(subj, "label");
         JSONObject theme = l.optJSONObject("theme");
         it.theme = theme == null ? "" : clean(str(theme, "label"));
+        it.classHour = isClassHour(it.subject, it.additional, it.theme);
+        if (it.classHour) it.additional = true;
         JSONObject hw = l.optJSONObject("homework");
         String body = hw == null ? "" : clean(str(hw, "body"));
         it.homework = NO_HOMEWORK.equalsIgnoreCase(body) ? "" : body;
@@ -148,7 +151,7 @@ final class BilimData {
         Item first = group.get(0);
         StringBuilder title = new StringBuilder();
         if (first.additional) {
-            if (first.theme.startsWith("Кл")) {
+            if (first.classHour) {
                 title.append("Кл. час, ").append(first.cls);
             } else {
                 title.append("Факультатив, ").append(first.cls);
@@ -171,6 +174,19 @@ final class BilimData {
             details.add(new Schedule.Detail(it.cls, it.theme, it.homework, it.scheduleUuid, it.files));
         }
         return new Schedule.Lesson(first.start, first.end, title.toString(), details);
+    }
+
+    private static final java.util.regex.Pattern CLASS_HOUR = java.util.regex.Pattern.compile(
+            "классн\\S*\\s+час|сынып\\s+сағат", java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE);
+
+    /**
+     * Классный час: раньше BilimClass присылал его дополнительным предметом с темой «Кл…»,
+     * со 2-й четверти 2026 — обычным предметом «Классный час» (по-казахски «Сынып сағаты»).
+     * Домашку к нему не задают, но в расписании он остаётся.
+     */
+    static boolean isClassHour(String subject, boolean additional, String theme) {
+        if (subject != null && CLASS_HOUR.matcher(subject).find()) return true;
+        return additional && theme != null && theme.startsWith("Кл");
     }
 
     /** «7 А» → «7А»; «9 класс» не меняется. */

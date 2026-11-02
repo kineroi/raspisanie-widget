@@ -398,7 +398,13 @@ function renderWeek() {
       } else if (kind === 'next') {
         row.append(el('span', 'chip next', 'далее'));
       }
-      row.addEventListener('click', () => window.api.openHomework(L.isoDate(d), l.start));
+      // к классному часу домашку не задают — он только в расписании
+      if (l.title.startsWith('Кл. час')) {
+        row.title = 'Классный час — домашнее задание не задаётся';
+        row.style.cursor = 'default';
+      } else {
+        row.addEventListener('click', () => window.api.openHomework(L.isoDate(d), l.start));
+      }
       card.append(row);
     });
     box.append(card);

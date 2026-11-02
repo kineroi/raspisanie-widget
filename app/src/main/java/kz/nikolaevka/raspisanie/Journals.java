@@ -81,6 +81,12 @@ final class Journals {
                         JSONObject subj = l.optJSONObject("subject");
                         JSONObject cls = l.optJSONObject("class");
                         if (subj == null || cls == null || subj.optBoolean("isAdditional")) continue;
+                        // классный час — не предмет с оценками (и убрать, если его запомнили раньше)
+                        JSONObject th = l.optJSONObject("theme");
+                        if (BilimData.isClassHour(subj.optString("label"), false, th == null ? "" : th.optString("label"))) {
+                            map.remove(l.optString("educationProgramSubjectUuid", subj.optString("uuid", "")));
+                            continue;
+                        }
                         String uuid = l.optString("educationProgramSubjectUuid", subj.optString("uuid", ""));
                         if (uuid.isEmpty() || "null".equals(uuid)) continue;
                         Info in = new Info();

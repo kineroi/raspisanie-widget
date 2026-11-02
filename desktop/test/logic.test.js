@@ -74,6 +74,17 @@ test('разбор недели и объединение сдвоенных у�
   assert.equal(days['2026-11-04'].holiday, true);
 });
 
+test('классный час в новом виде BilimClass (обычный предмет «Классный час»)', () => {
+  const ch = lesson('08:30', '09:00', '9 А', false, 'Безопасность в интернете', '', '6');
+  ch.subject = { label: 'Классный час', isAdditional: false };
+  const week = { data: { days: [{ date: '09.11.2026', isHoliday: false }], rows: [{ '09.11.2026': [ch] }] } };
+  const l = L.parseWeek(week)['2026-11-09'].lessons[0];
+  assert.equal(l.title, 'Кл. час, 9А (каб. 6)');
+  assert.equal(L.isClassHour({ label: 'Сынып сағаты' }, ''), true);
+  assert.equal(L.isClassHour({ label: 'Иностранный язык', isAdditional: true }, 'Кл. час'), true);
+  assert.equal(L.isClassHour({ label: 'Иностранный язык', isAdditional: false }, 'Классы предметов'), false);
+});
+
 test('состояние виджета по данным BilimClass', () => {
   const src = L.makeSource(L.parseWeeks([EMPTY_WEEK, WEEK]));
   const s = L.computeState(new Date(2026, 10, 2, 9, 10), src);

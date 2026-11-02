@@ -75,9 +75,21 @@
   };
   const dmyToIso = (s) => { const [d, m, y] = s.split('.'); return `${y}-${m}-${d}`; };
 
+  /**
+   * Классный час: раньше BilimClass присылал его дополнительным предметом с темой «Кл…»,
+   * со 2-й четверти 2026 — обычным предметом «Классный час» (по-казахски «Сынып сағаты»).
+   * Домашку к нему не задают, но в расписании он остаётся.
+   */
+  function isClassHour(subject, theme) {
+    const label = String((subject && subject.label) || '');
+    if (/классн\S*\s+час|сынып\s+сағат/i.test(label)) return true;
+    return !!(subject && subject.isAdditional) && String(theme || '').startsWith('Кл');
+  }
+
   function parseItem(l) {
     const time = l && l.time;
     if (!time || !time.timeStart || !time.timeEnd) return null;
+    const classHour = isClassHour(l.subject, clean(l.theme && l.theme.label));
     const hw = l.homework || null;
     const body = hw ? clean(hw.body) : '';
     const files = (hw && Array.isArray(hw.files) ? hw.files : []).map((f) => ({
@@ -89,7 +101,8 @@
       start: time.timeStart,
       end: time.timeEnd,
       cls: compactClass(l.class && l.class.label),
-      additional: !!(l.subject && l.subject.isAdditional),
+      additional: !!(l.subject && l.subject.isAdditional) || classHour,
+      classHour,
       theme: clean(l.theme && l.theme.label),
       homework: body.toLowerCase() === NO_HOMEWORK ? '' : body,
       cabinet: (l.cabinet && l.cabinet.number) ? String(l.cabinet.number) : '',
@@ -104,7 +117,7 @@
     const first = group[0];
     let title;
     if (first.additional) {
-      title = (first.theme.startsWith('Кл') ? 'Кл. час, ' : 'Факультатив, ') + first.cls;
+      title = (first.classHour ? 'Кл. час, ' : 'Факультатив, ') + first.cls;
     } else {
       title = [...new Set(group.map((it) => it.cls))].join(' + ');
     }
@@ -451,7 +464,7 @@
 
   return {
     DAY_NAMES, MONTHS, isoDate, parseIso, addDays, dow, mondayOf, dateText, toMin, range, eduYear,
-    templateDay, makeSource, compactClass, parseWeek, parseWeeks, homeworkSummary, computeState, formatLeft,
+    templateDay, makeSource, compactClass, parseWeek, parseWeeks, isClassHour, homeworkSummary, computeState, formatLeft,
     expandRules, GEMINI_MODELS, GEMINI_SYSTEM, geminiRequest, geminiParse, nextReminder, reminderText, REMIND_BEFORE_MIN,
     addHomeworkHistory, homeworkSuggestions, HOMEWORK_HISTORY_MAX,
   };

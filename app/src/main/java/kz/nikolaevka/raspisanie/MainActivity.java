@@ -724,7 +724,8 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(8), dp(8), dp(8), dp(8));
         if (cur) row.setBackground(round(c(R.color.a_primary_soft), 10));
-        row.setOnClickListener(v -> openHomework(d, l));
+        // к классному часу домашку не задают — он только в расписании
+        if (!l.title.startsWith("Кл. час")) row.setOnClickListener(v -> openHomework(d, l));
 
         TextView time = text(shortTime ? WidgetState.hm(l.start) : WidgetState.range(l), 14,
                 c(cur ? R.color.a_primary : R.color.a_muted), 500);

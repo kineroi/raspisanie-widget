@@ -53,7 +53,8 @@ function render() {
     n.textContent = l.title;
     row.title = [l.title, L.homeworkSummary(l) || ''].filter(Boolean).join('\n');
     row.append(t, n);
-    row.addEventListener('click', () => window.api.openHomework(s.listDate, l.start));
+    // к классному часу домашку не задают — он только в расписании
+    if (!l.title.startsWith('Кл. час')) row.addEventListener('click', () => window.api.openHomework(s.listDate, l.start));
     list.appendChild(row);
   });
 

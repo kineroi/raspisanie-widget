@@ -95,6 +95,12 @@ public class HomeworkActivity extends Activity {
             finish();
             return;
         }
+        // к классному часу домашку не задают (BilimClass её и не примет)
+        if (lesson.title.startsWith("Кл. час")) {
+            Toast.makeText(this, "Классный час — домашнее задание не задаётся.", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
         for (Schedule.Detail d : lesson.details) {
             if (!d.scheduleUuid.isEmpty()) targets.add(d);
         }

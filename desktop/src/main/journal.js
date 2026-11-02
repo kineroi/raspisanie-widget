@@ -14,6 +14,8 @@ const journalHost = (eduYear) => (eduYear <= 2025
 /** Мои журналы — из уроков в расписании (класс + предмет), без классного часа. */
 function discoverJournals(weeks) {
   const map = new Map();
+  // классный час — не предмет с оценками; если его уже запомнили раньше, убираем
+  const classHours = new Set();
   for (const w of weeks || []) {
     for (const row of (w.data && w.data.rows) || []) {
       for (const arr of Object.values(row || {})) {
@@ -21,14 +23,15 @@ function discoverJournals(weeks) {
           const subj = l.subject || {};
           const uuid = l.educationProgramSubjectUuid || subj.uuid;
           const groupId = l.class && l.class.groupId;
-          if (!uuid || !groupId || subj.isAdditional) continue;
+          if (uuid && L.isClassHour(subj, l.theme && l.theme.label)) classHours.add(uuid);
+          if (!uuid || !groupId || subj.isAdditional || classHours.has(uuid)) continue;
           map.set(uuid, { uuid, groupId, subjectId: subj.subjectId, cls: L.compactClass(l.class.label) });
         }
       }
     }
   }
   // сохраняем найденные ранее (на каникулах в расписании уроков может не быть)
-  for (const j of store.get('journals', [])) if (!map.has(j.uuid)) map.set(j.uuid, j);
+  for (const j of store.get('journals', [])) if (!map.has(j.uuid) && !classHours.has(j.uuid)) map.set(j.uuid, j);
   const list = [...map.values()].sort((a, b) => a.cls.localeCompare(b.cls, 'ru', { numeric: true }));
   store.set({ journals: list });
   return list;
