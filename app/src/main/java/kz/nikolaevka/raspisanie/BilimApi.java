@@ -21,16 +21,60 @@ final class BilimApi {
     /** Ошибка ответа сервера (с кодом HTTP). */
     static final class HttpError extends IOException {
         final int code;
+        /** Объяснение самого BilimClass («message» из ответа), "" если его нет. */
+        final String detail;
 
         HttpError(int code) {
+            this(code, "");
+        }
+
+        HttpError(int code, String detail) {
             super("HTTP " + code);
             this.code = code;
+            this.detail = detail == null ? "" : detail;
         }
 
         /** Вход устарел или недействителен. */
         boolean isAuth() {
             return code == 401 || code == 403 || code == 419 || code == 426;
         }
+
+        /** Пропуск действительно устарел (а не «нет прав на это действие» — 403). */
+        boolean isExpired() {
+            return code == 401 || code == 419 || code == 426;
+        }
+    }
+
+    /** Текст ошибки из ответа BilimClass: {"message": "..."} или {"errors": {...}}. */
+    static String errorDetail(String body) {
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(body);
+            String msg = o.optString("message", "");
+            if (msg.isEmpty()) msg = o.optString("error", "");
+            org.json.JSONObject errors = o.optJSONObject("errors");
+            if (msg.isEmpty() && errors != null) {
+                java.util.Iterator<String> it = errors.keys();
+                if (it.hasNext()) {
+                    Object v = errors.opt(it.next());
+                    msg = v instanceof org.json.JSONArray ? ((org.json.JSONArray) v).optString(0, "") : String.valueOf(v);
+                }
+            }
+            msg = msg.replaceAll("\\s+", " ").trim();
+            return msg.length() > 200 ? msg.substring(0, 200) : msg;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** Ошибка с объяснением из тела ответа. */
+    private static HttpError httpError(HttpURLConnection c, int code) {
+        String detail = "";
+        try (InputStream err = c.getErrorStream()) {
+            if (err != null) detail = errorDetail(readAll(err));
+        } catch (IOException ignored) {
+            // без объяснения
+        }
+        return new HttpError(code, detail);
     }
 
     /** Новый пропуск после продления входа. */
@@ -213,7 +257,7 @@ final class BilimApi {
 
     private static String finish(HttpURLConnection c) throws IOException {
         int code = c.getResponseCode();
-        if (code < 200 || code >= 300) throw new HttpError(code);
+        if (code < 200 || code >= 300) throw httpError(c, code);
         try (InputStream in = c.getInputStream()) {
             return readAll(in);
         }
@@ -257,7 +301,7 @@ final class BilimApi {
                 }
             }
             int code = c.getResponseCode();
-            if (code < 200 || code >= 300) throw new HttpError(code);
+            if (code < 200 || code >= 300) throw httpError(c, code);
             try (InputStream in = c.getInputStream()) {
                 return readAll(in);
             }

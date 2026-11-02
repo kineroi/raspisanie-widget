@@ -557,10 +557,15 @@ public class HomeworkActivity extends Activity {
     private String errorText(IOException e) {
         if (e instanceof BilimApi.HttpError) {
             BilimApi.HttpError h = (BilimApi.HttpError) e;
-            if (h.isAuth()) return "Вход в BilimClass устарел — войдите заново в приложении.";
+            String why = h.detail.isEmpty() ? "" : " BilimClass: «" + h.detail + "».";
+            if (h.isExpired()) return "Вход в BilimClass устарел — войдите заново в приложении.";
+            // пропуск действующий (расписание загружается), но на это действие у учителя нет прав
+            if (h.code == 403) {
+                return "BilimClass не разрешил это сохранить." + (why.isEmpty() ? " Например, к классному часу домашку не задают." : why);
+            }
             if (h.code == 413) return "Файл слишком большой для BilimClass.";
-            if (h.code == 422) return "BilimClass не принял данные (проверьте текст и файлы).";
-            return "BilimClass ответил ошибкой " + h.code + ".";
+            if (h.code == 422) return "BilimClass не принял данные." + (why.isEmpty() ? " Проверьте текст и файлы." : why);
+            return "BilimClass ответил ошибкой " + h.code + "." + why;
         }
         String m = e.getMessage();
         if (m != null && (m.startsWith("Файл") || m.startsWith("Не удалось"))) return m;

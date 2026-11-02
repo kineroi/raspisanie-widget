@@ -7,13 +7,32 @@ const L = require('../shared/logic');
 const API = 'https://api.bilimclass.kz';
 
 class HttpError extends Error {
-  constructor(code) {
+  /** detail — объяснение самого BilimClass («message» из ответа), если оно есть. */
+  constructor(code, detail) {
     super(`HTTP ${code}`);
     this.code = code;
+    this.detail = detail || '';
   }
 
   get isAuth() {
     return [401, 403, 419, 426].includes(this.code);
+  }
+
+  /** Пропуск действительно устарел (а не «нет прав на это действие» — 403). */
+  get isExpired() {
+    return [401, 419, 426].includes(this.code);
+  }
+}
+
+/** Текст ошибки из ответа BilimClass: {"message": "..."} или {"errors": {...}}. */
+function errorDetail(text) {
+  try {
+    const o = JSON.parse(text);
+    const errors = o && o.errors && typeof o.errors === 'object' ? Object.values(o.errors).flat().filter((x) => typeof x === 'string') : [];
+    const msg = (o && (o.message || o.error || (o.data && o.data.message))) || errors[0] || '';
+    return String(msg).replace(/\s+/g, ' ').trim().slice(0, 200);
+  } catch {
+    return '';
   }
 }
 
@@ -31,7 +50,7 @@ async function request(method, url, { token, school, body, contentType, extra } 
     throw err;
   }
   const text = await res.text();
-  if (!res.ok) throw new HttpError(res.status);
+  if (!res.ok) throw new HttpError(res.status, errorDetail(text));
   return text;
 }
 
@@ -179,10 +198,13 @@ async function deleteFile(token, school, eduYear, fileId) {
 
 function errorText(e) {
   if (e instanceof HttpError) {
-    if (e.isAuth) return 'Вход в BilimClass устарел — войдите заново.';
+    const why = e.detail ? ` BilimClass: «${e.detail}».` : '';
+    if (e.isExpired) return 'Вход в BilimClass устарел — войдите заново.';
+    // пропуск действующий (расписание загружается), но на это действие у учителя нет прав
+    if (e.code === 403) return `BilimClass не разрешил это сохранить.${why || ' Например, к классному часу домашку не задают.'}`;
     if (e.code === 413) return 'Файл слишком большой для BilimClass.';
-    if (e.code === 422) return 'BilimClass не принял данные (проверьте текст и файлы).';
-    return `BilimClass ответил ошибкой ${e.code}.`;
+    if (e.code === 422) return `BilimClass не принял данные.${why || ' Проверьте текст и файлы.'}`;
+    return `BilimClass ответил ошибкой ${e.code}.${why}`;
   }
   return 'Нет связи с BilimClass. Проверьте интернет.';
 }
