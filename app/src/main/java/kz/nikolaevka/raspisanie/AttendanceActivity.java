@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
@@ -311,7 +312,90 @@ public class AttendanceActivity extends Activity {
             wa.setOnClickListener(v -> openReply());
             card.addView(wa, margins(dp(8), dp(42)));
         }
+        if (school && Bilim.isConnected(this)) {
+            Button bc = Ui.button(this, "Перенести в BilimClass", false);
+            bc.setOnClickListener(v -> transferToBilim());
+            card.addView(bc, margins(dp(8), dp(42)));
+        }
         return card;
+    }
+
+    // ---------- Перенос в BilimClass ----------
+    // На выбранный день: по каждому уроку учителя — отсутствовавшие ученики этого класса из нашего журнала.
+
+    private void transferToBilim() {
+        final LocalDate d = LocalDate.parse(date);
+        AlertDialog wait = new AlertDialog.Builder(this).setMessage("Сверяю с журналом BilimClass…").setCancelable(false).show();
+        new Thread(() -> {
+            List<Absence.LessonPlan> plans = null;
+            String error = null;
+            try {
+                plans = Absence.planDay(this, d);
+            } catch (IOException e) {
+                error = HomeworkActivity.errorText(e);
+            }
+            List<Absence.LessonPlan> got = plans;
+            String err = error;
+            runOnUiThread(() -> {
+                wait.dismiss();
+                if (isFinishing()) return;
+                if (err != null) {
+                    new AlertDialog.Builder(this).setMessage(err).setPositiveButton("OK", null).show();
+                    return;
+                }
+                if (got.isEmpty()) {
+                    new AlertDialog.Builder(this).setMessage("В этот день у вас нет уроков в расписании BilimClass.")
+                            .setPositiveButton("OK", null).show();
+                    return;
+                }
+                StringBuilder sb = new StringBuilder();
+                int total = 0;
+                for (Absence.LessonPlan p : got) {
+                    sb.append(p.range).append(" · ").append(p.cls).append(": ");
+                    if (p.error != null) sb.append(p.error);
+                    else if (!p.blocked.isEmpty()) sb.append("пропущен — ").append(p.blocked);
+                    else if (p.send.isEmpty()) sb.append("нечего отмечать");
+                    else {
+                        for (int i = 0; i < p.send.size(); i++) {
+                            if (i > 0) sb.append("; ");
+                            sb.append(p.send.get(i).name).append(" — ").append(Absence.label(p.send.get(i).code));
+                        }
+                    }
+                    if (!p.unmatched.isEmpty()) sb.append("\n   нет в журнале BilimClass: ").append(String.join(", ", p.unmatched));
+                    sb.append("\n\n");
+                    total += p.send.size();
+                }
+                AlertDialog.Builder b = new AlertDialog.Builder(this)
+                        .setTitle("В BilimClass за " + Attendance.dm(date))
+                        .setMessage(sb.toString().trim())
+                        .setNegativeButton(total > 0 ? "Отмена" : "Закрыть", null);
+                if (total > 0) b.setPositiveButton("Перенести (" + total + ")", (x, w) -> sendTransfer(got, d));
+                b.show();
+            });
+        }).start();
+    }
+
+    private void sendTransfer(List<Absence.LessonPlan> plans, LocalDate d) {
+        AlertDialog wait = new AlertDialog.Builder(this).setMessage("Отправляю в BilimClass…").setCancelable(false).show();
+        new Thread(() -> {
+            List<String> errors = new ArrayList<>();
+            int sent = 0;
+            for (Absence.LessonPlan p : plans) {
+                if (p.send.isEmpty() || p.ctx == null) continue;
+                try {
+                    Absence.send(this, d, p);
+                    sent += p.send.size();
+                } catch (IOException e) {
+                    errors.add(p.cls + " (" + p.range + "): " + HomeworkActivity.errorText(e));
+                }
+            }
+            String text = errors.isEmpty() ? "Перенесено в BilimClass ✓ (" + sent + ")"
+                    : "Отправлено: " + sent + ". Не получилось:\n" + String.join("\n", errors);
+            runOnUiThread(() -> {
+                wait.dismiss();
+                if (!isFinishing()) new AlertDialog.Builder(this).setMessage(text).setPositiveButton("OK", null).show();
+            });
+        }).start();
     }
 
     private View classCard(JSONObject cls, boolean marksAllowed) {

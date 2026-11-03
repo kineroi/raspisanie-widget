@@ -690,6 +690,8 @@ ipcMain.handle('marks-save', async (_e, date, cls, list) => {
 });
 ipcMain.handle('marks-conduct', (_e, date, scheduleUuid) => marks.conduct(String(date), String(scheduleUuid)));
 ipcMain.handle('marks-comment', (_e, note) => marks.polishComment(String(note || '')));
+ipcMain.handle('absence-plan', (_e, date) => marks.absencePlan(String(date)));
+ipcMain.handle('absence-send', (_e, date, ctx, items) => marks.absenceSend(String(date), ctx || {}, Array.isArray(items) ? items : []));
 ipcMain.handle('hide-mini', () => hideMini());
 ipcMain.handle('show-mini', () => showMini());
 ipcMain.handle('resize-mini', (_e, height) => {

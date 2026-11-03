@@ -1,5 +1,5 @@
 'use strict';
-/* global Attendance */
+/* global Attendance, Absence */
 const T = Attendance;
 const $ = (id) => document.getElementById(id);
 
@@ -472,6 +472,129 @@ function renderReply() {
   box.append(card);
 }
 
+// ---------- Перенос в BilimClass ----------
+// На выбранный день: по каждому уроку учителя — отсутствовавшие ученики этого класса из нашего журнала.
+
+/** null — панель закрыта; иначе { date, lessons, loading, message } */
+let transfer = null;
+
+function openTransfer() {
+  transfer = { date: todayIso(), lessons: null, loading: false, message: '' };
+  renderTransfer();
+  checkTransfer();
+}
+
+async function checkTransfer() {
+  transfer.loading = true;
+  transfer.lessons = null;
+  transfer.message = '';
+  renderTransfer();
+  const r = await window.api.absencePlan(transfer.date);
+  if (!transfer) return;
+  transfer.loading = false;
+  if (r.ok) transfer.lessons = r.lessons;
+  else transfer.message = r.message;
+  renderTransfer();
+}
+
+function transferCount() {
+  return (transfer.lessons || []).reduce((a, l) => a + (l.send ? l.send.length : 0), 0);
+}
+
+async function sendTransfer() {
+  const todo = transfer.lessons.filter((l) => l.send && l.send.length);
+  const lines = [];
+  for (const l of todo) for (const s of l.send) lines.push(`${l.range} ${l.cls}: ${s.name} — ${Absence.LABEL[s.code]}`);
+  if (!confirm(`Отметить в журнале BilimClass за ${dm(transfer.date)}?\n\n${lines.join('\n')}`)) return;
+  transfer.loading = true;
+  renderTransfer();
+  const errors = [];
+  for (const l of todo) {
+    const r = await window.api.absenceSend(transfer.date, l.ctx, l.send.map((s) => ({ id: s.id, code: s.code })));
+    if (!r.ok) errors.push(`${l.cls} (${l.range}): ${r.message}`);
+  }
+  const n = lines.length;
+  await checkTransfer();
+  if (transfer) {
+    transfer.message = errors.length ? `Не получилось: ${errors.join('; ')}` : `Перенесено в BilimClass ✓ (${n})`;
+    transfer.error = errors.length > 0;
+    renderTransfer();
+  }
+}
+
+function renderTransfer() {
+  const box = $('transfer');
+  box.textContent = '';
+  if (!transfer) return;
+  const card = el('div', 'card reply');
+  card.append(el('h2', '', 'Перенос в BilimClass'));
+  card.append(el('div', 'muted small', 'Отсутствовавшие из этого журнала отмечаются на ваших уроках в этот день: болел — «по болезни», '
+    + 'без уважительной — «без уважительной», остальное — «по уважительной причине». Только за проведённые уроки.'));
+  const bar = el('div', 'bar');
+  bar.append(el('span', 'muted small', 'День:'));
+  const d = el('input');
+  d.type = 'date';
+  d.value = transfer.date;
+  d.addEventListener('change', () => {
+    transfer.date = d.value || transfer.date;
+    checkTransfer();
+  });
+  bar.append(d);
+  const close = el('button', '', 'Закрыть');
+  close.addEventListener('click', () => { transfer = null; renderTransfer(); });
+  bar.append(el('div', 'grow'), close);
+  card.append(bar);
+  if (transfer.loading) card.append(el('div', 'small muted', 'Сверяю с журналом BilimClass…'));
+  for (const l of transfer.lessons || []) {
+    const r = el('div', 'row-item');
+    const head = el('div', '', `${l.range} · ${l.cls}`);
+    head.style.minWidth = '160px';
+    head.style.color = 'var(--text)';
+    r.append(head);
+    let text;
+    let color = 'var(--muted)';
+    if (l.error) {
+      text = l.error;
+      color = 'var(--red)';
+    } else if (l.blocked) {
+      text = `пропущен: ${l.blocked}`;
+      color = 'var(--orange)';
+    } else if (!l.send.length) {
+      text = 'нечего отмечать — всё уже совпадает';
+    } else {
+      text = l.send.map((s) => `${s.name} — ${Absence.LABEL[s.code]}`).join('; ');
+      color = 'var(--text)';
+    }
+    const t = el('div', 'small', text);
+    t.style.color = color;
+    t.style.flex = '1';
+    r.append(t);
+    if (l.unmatched && l.unmatched.length) {
+      const u = el('div', 'src', `Нет в журнале BilimClass: ${l.unmatched.join(', ')} — проверьте ФИО.`);
+      u.style.color = 'var(--orange)';
+      r.append(u);
+    }
+    card.append(r);
+  }
+  if (transfer.message) {
+    const m = el('div', 'small', transfer.message);
+    m.style.color = transfer.error || !transfer.lessons ? 'var(--red)' : 'var(--green)';
+    m.style.marginTop = '8px';
+    card.append(m);
+  }
+  if (transfer.lessons) {
+    const n = transferCount();
+    const go = el('button', 'primary', n ? `Перенести: ${n}` : 'Переносить нечего');
+    go.disabled = !n || transfer.loading;
+    go.addEventListener('click', sendTransfer);
+    const row = el('div', 'bar');
+    row.append(go);
+    card.append(row);
+  }
+  box.append(card);
+}
+
+$('toBilim').addEventListener('click', openTransfer);
 $('paste').addEventListener('click', openReply);
 $('import').addEventListener('click', importWord);
 $('edit').addEventListener('click', () => {

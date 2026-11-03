@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('api', {
   marksSave: (date, cls, list) => ipcRenderer.invoke('marks-save', date, cls, list),
   marksConduct: (date, scheduleUuid) => ipcRenderer.invoke('marks-conduct', date, scheduleUuid),
   marksComment: (note) => ipcRenderer.invoke('marks-comment', note),
+  absencePlan: (date) => ipcRenderer.invoke('absence-plan', date),
+  absenceSend: (date, ctx, items) => ipcRenderer.invoke('absence-send', date, ctx, items),
   hideMini: () => ipcRenderer.invoke('hide-mini'),
   showMini: () => ipcRenderer.invoke('show-mini'),
   resizeMini: (h) => ipcRenderer.invoke('resize-mini', h),

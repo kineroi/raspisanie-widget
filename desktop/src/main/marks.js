@@ -146,4 +146,77 @@ async function polishComment(note) {
   }
 }
 
-module.exports = { load, save, conduct, polishComment };
+// ---------- Посещаемость → BilimClass ----------
+
+/**
+ * План на день: по каждому уроку учителя (кроме классного часа) и каждому его классу —
+ * кого отметить отсутствующим по нашему журналу посещаемости.
+ * → { ok, lessons: [{ start, range, title, cls, ctx, send, unmatched, blocked, error }] }
+ */
+async function absencePlan(date) {
+  const T = require('../shared/attendance');
+  const AB = require('../shared/absence');
+  const att = require('./attendance');
+  if (!store.get('refresh')) return { ok: false, message: 'BilimClass не подключён — войдите в основном окне.' };
+  const day = bilim.cachedDays()[String(date)];
+  const lessons = ((day && day.lessons) || []).filter((l) => !l.title.startsWith('Кл. час'));
+  if (!lessons.length) return { ok: false, message: 'В этот день у вас нет уроков в расписании BilimClass.' };
+  const j = att.load();
+  const ourClasses = T.sortedClasses(j);
+  try {
+    const out = await bilim.withToken(async (token, school) => {
+      const user = await userInfo(token, school);
+      const list = [];
+      for (const l of lessons) {
+        for (const det of l.details.filter((d) => d.scheduleUuid)) {
+          const row = { start: l.start, range: L.range(l), title: l.title, cls: det.cls, send: [], unmatched: [], blocked: '' };
+          const ours = ourClasses.find((c) => AB.sameClass(c.name, det.cls));
+          if (!ours) {
+            row.blocked = 'этого класса нет в журнале посещаемости';
+            list.push(row);
+            continue;
+          }
+          const c = await loadClass(token, school, user, date, det);
+          if (c.error) {
+            row.error = c.error;
+            list.push(row);
+            continue;
+          }
+          const absent = [];
+          const corrected = [];
+          for (const s of T.sortedStudents(ours)) {
+            const m = T.getMark(j, date, s.id);
+            if (m) absent.push({ name: s.name, reason: m.r });
+            else if (j.marks[date] && j.marks[date][s.id]) corrected.push(s.name);
+          }
+          Object.assign(row, AB.plan(c, absent, corrected));
+          row.ctx = { cls: c.cls, scheduleUuid: c.scheduleUuid, groupId: c.groupId, subjectId: c.subjectId, eduYear: c.eduYear };
+          list.push(row);
+        }
+      }
+      return list;
+    });
+    return { ok: true, lessons: out };
+  } catch (e) {
+    return { ok: false, message: e.code ? bilim.errorText(e) : (e.message || bilim.errorText(e)) };
+  }
+}
+
+/** Отправить отметки одного урока одним запросом (как сайт). */
+async function absenceSend(date, ctx, items) {
+  const AB = require('../shared/absence');
+  try {
+    await bilim.withToken(async (token, school) => {
+      const user = await userInfo(token, school);
+      const body = AB.bulkBody({ ...ctx, userId: user.userId, schoolId: school, date }, items);
+      await bilim.request('POST', `${journalHost(ctx.eduYear)}/attendance/bulk`, {
+        token: user.chat, school, contentType: 'application/json', extra: { external: '1' }, body: JSON.stringify(body),
+      });
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: bilim.errorText(e) };
+  }
+}
+
+module.exports = { load, save, conduct, polishComment, absencePlan, absenceSend };

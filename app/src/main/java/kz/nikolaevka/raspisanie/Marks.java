@@ -89,6 +89,8 @@ final class Marks {
 
     static final class Student {
         String id, name, comment = "", markUuid = "";
+        /** Отметка посещаемости в BilimClass: "" — нет, was_in_class, missing_by_sick… */
+        String attendance = "";
         /** null — оценки нет. */
         Integer mark;
     }
@@ -138,6 +140,10 @@ final class Marks {
             s.name = r.optString("fullName", "");
             JSONObject st = byStudent.optJSONObject(s.id);
             JSONObject cell = st == null || st.optJSONObject("marks") == null ? null : st.optJSONObject("marks").optJSONObject(scheduleUuid);
+            if (cell != null) {
+                Object at = cell.opt("attendance");
+                s.attendance = at == null || at == JSONObject.NULL ? "" : String.valueOf(at);
+            }
             JSONObject f = cell == null ? null : cell.optJSONObject("formattedScore");
             if (f != null) {
                 Object m = f.opt("mark");

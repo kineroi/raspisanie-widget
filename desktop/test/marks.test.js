@@ -32,8 +32,8 @@ test('урок в журнале: ученики по алфавиту, выбы
   assert.equal(l.canManage, true);
   assert.equal(l.markMax, 10);
   assert.deepEqual(l.students, [
-    { id: 'S1', name: 'Иванова Анна', mark: 7, comment: 'Хорошо', markUuid: 'M1' },
-    { id: 'S2', name: 'Петров Пётр', mark: null, comment: '', markUuid: '' },
+    { id: 'S1', name: 'Иванова Анна', mark: 7, comment: 'Хорошо', markUuid: 'M1', attendance: '' },
+    { id: 'S2', name: 'Петров Пётр', mark: null, comment: '', markUuid: '', attendance: '' },
   ]);
   assert.equal(M.parseLesson(QUARTER, MARKS, 'L2').completed, false);
   assert.equal(M.parseLesson(QUARTER, MARKS, 'нет').found, false);

@@ -89,6 +89,8 @@
           mark: typeof f.mark === 'number' ? f.mark : null,
           comment: f.comment || '',
           markUuid: f.markUuid || '',
+          // отметка посещаемости в BilimClass: '' — нет, was_in_class, missing_by_sick…
+          attendance: (cell && cell.attendance) || '',
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
