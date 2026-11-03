@@ -110,6 +110,7 @@ async function init() {
       : 'BilimClass не подключён — текст можно расписать, но отправить не получится. Подключите BilimClass в основном окне.';
   }
   $('send').disabled = !canSend;
+  $('openMarks').hidden = !canSend;
 
   if (targets.length > 1) {
     $('classesBox').hidden = false;
@@ -193,6 +194,7 @@ window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 
 $('close').addEventListener('click', () => window.close());
+$('openMarks').addEventListener('click', () => window.api.openMarks(date, start));
 
 $('send').addEventListener('click', async () => {
   if (busy) return;

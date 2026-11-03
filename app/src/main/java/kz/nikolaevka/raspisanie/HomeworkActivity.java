@@ -142,6 +142,16 @@ public class HomeworkActivity extends Activity {
                     + "Подключите BilimClass в приложении.", 13, red, 400);
             warn.setPadding(0, dp(8), 0, 0);
             col.addView(warn);
+        } else {
+            // оценки и комментарии за этот же урок — отдельный экран
+            android.widget.Button marks = Ui.button(this, "⭐ Оценки и комментарии за этот урок", false);
+            marks.setOnClickListener(v -> startActivity(new Intent(this, MarksActivity.class)
+                    .putExtra(EXTRA_DATE, date.toString())
+                    .putExtra(EXTRA_START, lesson.start.toString())));
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(42));
+            mp.topMargin = dp(8);
+            col.addView(marks, mp);
         }
 
         // Для сдвоенных уроков — каким классам отправить
@@ -560,7 +570,7 @@ public class HomeworkActivity extends Activity {
         return last == null ? "файл" : last;
     }
 
-    private String errorText(IOException e) {
+    static String errorText(IOException e) {
         if (e instanceof BilimApi.HttpError) {
             BilimApi.HttpError h = (BilimApi.HttpError) e;
             String why = h.detail.isEmpty() ? "" : " BilimClass: «" + h.detail + "».";

@@ -14,6 +14,7 @@ const journal = require('./journal');
 const analysis = require('./analysis');
 const attestation = require('./attestation');
 const attendance = require('./attendance');
+const marks = require('./marks');
 const digest = require('./digest');
 const L = require('../shared/logic');
 
@@ -239,6 +240,35 @@ function openHomework(date, start) {
   w.loadFile(path.join(RENDERER, 'homework.html'), { query: { date, start } });
   homeworkWins.set(key, w);
   w.on('closed', () => homeworkWins.delete(key));
+}
+
+const marksWins = new Map();
+
+/** Окно «Оценки за урок»: баллы и комментарии в журнал BilimClass. */
+function openMarks(date, start) {
+  const key = `${date} ${start}`;
+  const existing = marksWins.get(key);
+  if (existing && !existing.isDestroyed()) {
+    existing.show();
+    existing.focus();
+    return;
+  }
+  const w = new BrowserWindow({
+    width: 760,
+    height: 820,
+    minWidth: 560,
+    minHeight: 500,
+    title: 'Оценки за урок',
+    backgroundColor: windowBackground(),
+    icon: path.join(ASSETS, 'icon.png'),
+    alwaysOnTop: true, // чтобы мини-окно его не закрывало
+    autoHideMenuBar: true,
+    webPreferences: webPrefs(),
+  });
+  w.removeMenu();
+  w.loadFile(path.join(RENDERER, 'marks.html'), { query: { date, start } });
+  marksWins.set(key, w);
+  w.on('closed', () => marksWins.delete(key));
 }
 
 let gradesWin = null;
@@ -650,6 +680,16 @@ ipcMain.handle('test-reminder', () => {
 });
 ipcMain.handle('open-main', () => showMain());
 ipcMain.handle('open-homework', (_e, date, start) => openHomework(String(date), String(start)));
+ipcMain.handle('open-marks', (_e, date, start) => openMarks(String(date), String(start)));
+ipcMain.handle('marks-load', (_e, date, start) => marks.load(String(date), String(start)));
+ipcMain.handle('marks-save', async (_e, date, cls, list) => {
+  const r = await marks.save(String(date), cls || {}, Array.isArray(list) ? list : []);
+  // успеваемость пересчитается с новыми оценками
+  journal.refresh().then(() => broadcast()).catch(() => {});
+  return r;
+});
+ipcMain.handle('marks-conduct', (_e, date, scheduleUuid) => marks.conduct(String(date), String(scheduleUuid)));
+ipcMain.handle('marks-comment', (_e, note) => marks.polishComment(String(note || '')));
 ipcMain.handle('hide-mini', () => hideMini());
 ipcMain.handle('show-mini', () => showMini());
 ipcMain.handle('resize-mini', (_e, height) => {
@@ -832,6 +872,8 @@ function startSmoke() {
   setTimeout(() => openGrades(), 4500);
   setTimeout(() => openAnalysis(), 4700);
   setTimeout(() => openAttendance(), 4800);
+  // окно оценок без BilimClass: должно открыться и спокойно сказать, что журнал недоступен
+  setTimeout(() => openMarks('2026-10-19', '09:00'), 4900);
   setTimeout(async () => {
     try {
       if (!attendanceWin) { smokeErrors.push('attendance window not opened'); return; }

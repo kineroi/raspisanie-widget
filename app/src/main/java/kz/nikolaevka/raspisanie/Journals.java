@@ -37,7 +37,7 @@ final class Journals {
         List<Grades.Lesson> lessons = new ArrayList<>();
     }
 
-    private static final class Info {
+    static final class Info {
         String uuid;
         long groupId;
         long subjectId;
@@ -49,7 +49,7 @@ final class Journals {
     }
 
     /** Мои журналы — из уроков в расписании; найденные раньше сохраняются (на каникулах уроков нет). */
-    private static List<Info> discover(Context c) {
+    static List<Info> discover(Context c) {
         Map<String, Info> map = new LinkedHashMap<>();
         try {
             JSONArray stored = new JSONArray(prefs(c).getString(K_LIST, "[]"));

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Оценки за урок</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <style>
+    .page { padding: 20px 24px 24px; }
+    h1 { color: var(--text); font-size: 22px; font-weight: 500; margin: 0 0 2px; }
+    h2 { color: var(--text); font-size: 18px; font-weight: 500; margin: 0; }
+    .card { background: var(--surface); border-radius: 8px; padding: 14px 16px; margin-top: 14px; }
+    .lesson-state { font-size: 13px; margin-top: 4px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .ok { color: var(--green); }
+    .bad { color: var(--red); }
+    .warn { color: var(--orange); }
+    .student { display: grid; grid-template-columns: minmax(150px, 1.1fr) 76px minmax(200px, 2fr) 34px; gap: 8px;
+      align-items: start; padding: 10px 0; border-top: 1px solid var(--border); }
+    .student:first-of-type { border-top: 0; }
+    @media (max-width: 640px) { .student { grid-template-columns: 1fr 76px; } .student .comment, .student .ai { grid-column: 1 / -1; } }
+    .student .name { color: var(--text); padding-top: 6px; }
+    .student .was { font-size: 12px; color: var(--muted); }
+    .student select { margin: 0; width: 100%; }
+    .student textarea { margin: 0; width: 100%; min-height: 54px; resize: vertical; background: var(--bg); }
+    .student .count { font-size: 11px; color: var(--muted); text-align: right; }
+    .student .count.over { color: var(--red); font-weight: 600; }
+    .student .ai { padding: 6px 0; }
+    .student .result { font-size: 12px; grid-column: 1 / -1; }
+    .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .actions .primary { flex: 1.6; padding: 10px; }
+    .actions button { flex: 1; }
+    #status { margin-top: 12px; min-height: 18px; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Оценки за урок</h1>
+    <div id="head" class="muted"></div>
+    <div class="small muted" style="margin-top: 6px">
+      Балл ФО за урок и комментарий. Комментарий напишите кратко — нейросеть сделает его на русском и английском,
+      вместе не длиннее 250 символов (столько принимает BilimClass). Нейросети уходит только текст комментария — без ФИО и баллов.
+    </div>
+    <div id="classes"></div>
+    <div id="status" class="muted"></div>
+    <div class="actions">
+      <button id="close">Закрыть</button>
+      <button id="polish">✨ Комментарии на двух языках</button>
+      <button id="send" class="primary" disabled>Отправить в BilimClass</button>
+    </div>
+  </div>
+  <script src="../shared/logic.js"></script>
+  <script src="../shared/marks.js"></script>
+  <script src="marks.js"></script>
+</body>
+</html>
