@@ -66,6 +66,18 @@
             android:name=".DailyMessage$Receiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".Birthdays$Receiver"
+            android:exported="false" />
+
+        <activity
+            android:name=".BirthdaysActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
+            android:label="Дни рождения"
+            android:theme="@style/AppTheme"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- из уведомления «Сообщение в WhatsApp»: открывает WhatsApp с готовым текстом и сразу закрывается -->
         <activity
             android:name=".SendMessageActivity"

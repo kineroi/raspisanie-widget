@@ -280,6 +280,42 @@ public class AttendanceTest {
                 pick(Attendance.parseReply(school(), "4 класс\nБолеют:\nЛис Кирилл\nИванова")));
     }
 
+    @Test
+    public void birthdaysParseOrderAge() {
+        Attendance.BirthdayList r = Attendance.parseBirthdays(
+                "СИДОРОВ\tПЁТР\tИВАНОВИЧ\t29.04.2013\r\n\nКотова Анна 5.1.2014\nБез даты Ученик\nЛис Кирилл 31.02.2013");
+        assertEquals(2, r.items.size());
+        assertEquals("Сидоров Пётр Иванович", r.items.get(0)[0]);
+        assertEquals("2013-04-29", r.items.get(0)[1]);
+        assertEquals("2014-01-05", r.items.get(1)[1]);
+        assertEquals(Arrays.asList("Без даты Ученик", "Лис Кирилл 31.02.2013"), r.bad);
+
+        JSONObject j = Attendance.empty();
+        Attendance.addBirthdays(j, Arrays.asList(new String[]{"Сидоров Пётр", "2013-11-06"},
+                new String[]{"Котова Анна", "2014-01-05"}, new String[]{"Лис Кирилл", "2012-02-29"}));
+        List<Attendance.Birthday> up = Attendance.upcomingBirthdays(j, java.time.LocalDate.of(2026, 11, 6));
+        assertEquals("Сидоров Пётр", up.get(0).name);
+        assertEquals(0, up.get(0).daysLeft);
+        assertEquals(13, up.get(0).age);
+        assertEquals("Сидоров Пётр, 13 лет", Attendance.birthdayText(up.get(0)));
+        assertEquals(java.time.LocalDate.of(2027, 2, 28), up.get(2).next);
+        assertEquals(java.time.LocalDate.of(2028, 2, 29),
+                Attendance.nextBirthday(java.time.LocalDate.of(2012, 2, 29), java.time.LocalDate.of(2028, 1, 1)));
+    }
+
+    @Test
+    public void birthdaysSyncWithoutDuplicates() {
+        java.util.List<String[]> list = java.util.Collections.singletonList(new String[]{"Сидоров Пётр", "2013-04-29"});
+        JSONObject pc = Attendance.empty(), phone = Attendance.empty();
+        assertEquals(1, Attendance.addBirthdays(pc, list)[0]);
+        assertEquals(1, Attendance.addBirthdays(pc, list)[1]);
+        Attendance.addBirthdays(phone, list);
+        JSONObject m = Attendance.merge(pc, phone);
+        assertEquals(1, Attendance.upcomingBirthdays(m, java.time.LocalDate.of(2026, 11, 6)).size());
+        // журнал, записанный старой версией без дней рождения, ничего не ломает
+        assertEquals(1, Attendance.upcomingBirthdays(Attendance.merge(m, Attendance.empty()), java.time.LocalDate.of(2026, 11, 6)).size());
+    }
+
     private static String p(String t) {
         return "<w:p><w:r><w:t xml:space=\"preserve\">" + t + "</w:t></w:r></w:p>";
     }

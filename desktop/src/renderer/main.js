@@ -315,6 +315,23 @@ function renderAttendance() {
   box.append(button('Открыть журнал', 'primary', () => window.api.openAttendance()));
 }
 
+function renderBirthdays() {
+  const box = $('birthdays');
+  box.textContent = '';
+  const b = data.birthdays || { count: 0, soon: [] };
+  if (!b.count) {
+    box.append(el('div', 'muted small', 'Список пока пуст: вставьте ФИО и даты из таблицы.'));
+  } else if (!b.soon.length) {
+    box.append(el('div', 'muted small', `В ближайшую неделю нет. Всего в списке: ${b.count}.`));
+  } else {
+    const ul = el('ul');
+    const dm = (iso) => `${iso.slice(8)}.${iso.slice(5, 7)}`;
+    for (const s of b.soon) ul.append(el('li', '', `${s.daysLeft === 0 ? 'Сегодня' : s.daysLeft === 1 ? 'Завтра' : dm(s.next)}: ${s.text}`));
+    box.append(ul);
+  }
+  box.append(button('Открыть список', '', () => window.api.openBirthdays()));
+}
+
 function stat(color, icon, value, name, sub) {
   const b = el('button', 'stat');
   const ic = el('div', 'ic');
@@ -453,11 +470,13 @@ function render() {
   $('onTop').checked = data.miniOnTop;
   $('reminders').checked = data.remindersOn;
   $('gradeAlerts').checked = data.gradeAlertsOn;
+  $('birthdayAlerts').checked = data.birthdayAlertsOn;
   $('openGrades').disabled = !data.connected;
   $('openAnalysis').disabled = !data.connected;
   $('autostart').checked = data.autostart;
   renderStats();
   renderAttendance();
+  renderBirthdays();
   renderWeek();
 }
 
@@ -472,6 +491,7 @@ $('credits').textContent = 'Оформление по шаблону «Education
 $('onTop').addEventListener('change', (e) => window.api.setMiniOnTop(e.target.checked));
 $('reminders').addEventListener('change', (e) => window.api.setReminders(e.target.checked));
 $('gradeAlerts').addEventListener('change', (e) => window.api.setGradeAlerts(e.target.checked));
+$('birthdayAlerts').addEventListener('change', (e) => window.api.setBirthdayAlerts(e.target.checked));
 $('openGrades').addEventListener('click', () => window.api.openGrades());
 $('openAnalysis').addEventListener('click', () => window.api.openAnalysis());
 $('openAttestation').addEventListener('click', () => window.api.openAttestation());

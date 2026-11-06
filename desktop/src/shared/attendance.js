@@ -45,7 +45,7 @@
   const setClock = (fn) => { clock = fn; };
 
   function empty() {
-    return { classes: [], marks: {}, days: {} };
+    return { classes: [], marks: {}, days: {}, birthdays: [] };
   }
 
   const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
@@ -73,7 +73,8 @@
       t: c.t || 0,
       students: (Array.isArray(c.students) ? c.students : []).filter(isObj).map((x) => ({ ...x, t: x.t || 0 })),
     }));
-    return { classes, marks, days };
+    const birthdays = (Array.isArray(o.birthdays) ? o.birthdays : []).filter(isObj).map((b) => ({ ...b, t: b.t || 0 }));
+    return { classes, marks, days, birthdays };
   }
 
   const live = (x) => !x.deleted && !x.mergedInto;
@@ -294,7 +295,14 @@
     }
     const days = {};
     for (const src of [x.days, y.days]) for (const [d, e] of Object.entries(src)) days[d] = newer(days[d], e);
-    const j = { classes: [...classes.values()].sort((p, q) => (p.id < q.id ? -1 : 1)), marks, days };
+    const birthdays = new Map();
+    for (const b of x.birthdays.concat(y.birthdays)) birthdays.set(b.id, newer(birthdays.get(b.id), b));
+    const j = {
+      classes: [...classes.values()].sort((p, q) => (p.id < q.id ? -1 : 1)),
+      marks,
+      days,
+      birthdays: [...birthdays.values()].sort((p, q) => (p.id < q.id ? -1 : 1)),
+    };
     for (const c of j.classes) c.students.sort((p, q) => (p.id < q.id ? -1 : 1));
     dedupe(j);
     return j;
@@ -482,6 +490,94 @@
     }
     return `${a.student} (${a.cls}): ${a.count} ${plural(a.count, 'пропуск', 'пропуска', 'пропусков')} без уважительной причины `
       + `за 30 дней, последний ${dm(a.last)}`;
+  }
+
+  // ---------- Дни рождения ----------
+  // Список вставляется из таблицы (ФИО и дата), синхронизируется вместе с журналом. id зависит только от ФИО и даты,
+  // поэтому один и тот же список, вставленный на компьютере и на телефоне, не задваивается.
+
+  const birthdayId = (name, date) => `${String(name).toLowerCase().replace(/ё/g, 'е')}|${date}`;
+
+  /** Настоящая ли дата «ГГГГ-ММ-ДД» (31.02 — нет). */
+  function validDate(iso) {
+    const d = new Date(`${iso}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso;
+  }
+
+  /** Текст из Excel или Word: в строке ФИО и дата ДД.ММ.ГГГГ → { items: [{ name, date }], bad: [строки без даты] }. */
+  function parseBirthdays(text) {
+    const items = [];
+    const bad = [];
+    for (const raw of String(text || '').split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const m = /(\d{1,2})[./-](\d{1,2})[./-](\d{4})/.exec(line);
+      const name = fixName(line.replace(/\d{1,2}[./-]\d{1,2}[./-]\d{4}/, ' ').replace(/^\s*\d+[.)]?\s+/, ''));
+      const date = m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : '';
+      if (name && date && validDate(date)) items.push({ name, date });
+      else bad.push(line);
+    }
+    return { items, bad };
+  }
+
+  /** Добавить в журнал; удалённого раньше вернуть. → { added, known } */
+  function addBirthdays(j, items) {
+    let added = 0;
+    let known = 0;
+    for (const it of items) {
+      const id = birthdayId(it.name, it.date);
+      const cur = j.birthdays.find((b) => b.id === id);
+      if (cur && !cur.deleted) {
+        known++;
+      } else if (cur) {
+        cur.deleted = false;
+        cur.t = clock();
+        added++;
+      } else {
+        j.birthdays.push({ id, name: it.name, date: it.date, t: clock() });
+        added++;
+      }
+    }
+    return { added, known };
+  }
+
+  function removeBirthday(j, id) {
+    const b = j.birthdays.find((x) => x.id === id);
+    if (b) {
+      b.deleted = true;
+      b.t = clock();
+    }
+  }
+
+  /** Ближайшая дата праздника не раньше сегодня. 29 февраля в невисокосный год — 28-го. */
+  function nextBirthday(birth, todayIso) {
+    const on = (y) => {
+      const iso = `${y}${birth.slice(4)}`;
+      return validDate(iso) ? iso : `${y}-02-28`;
+    };
+    const y = Number(todayIso.slice(0, 4));
+    return on(y) >= todayIso ? on(y) : on(y + 1);
+  }
+
+  /** Все дни рождения по порядку от сегодня: [{ id, name, date, next, age, daysLeft }]. */
+  function upcomingBirthdays(j, todayIso) {
+    const at = (iso) => Date.parse(`${iso}T00:00:00Z`);
+    return j.birthdays.filter((b) => !b.deleted).map((b) => {
+      const next = nextBirthday(b.date, todayIso);
+      return {
+        id: b.id,
+        name: b.name,
+        date: b.date,
+        next,
+        age: Number(next.slice(0, 4)) - Number(b.date.slice(0, 4)),
+        daysLeft: Math.round((at(next) - at(todayIso)) / 86400000),
+      };
+    }).sort((a, b) => a.daysLeft - b.daysLeft || a.name.localeCompare(b.name, 'ru'));
+  }
+
+  /** «Иванов Иван, 13 лет». */
+  function birthdayText(b) {
+    return `${b.name.split(' ').slice(0, 2).join(' ')}, ${b.age} ${plural(b.age, 'год', 'года', 'лет')}`;
   }
 
   // ---------- Ответ из WhatsApp → отметки ----------
@@ -756,6 +852,6 @@
     setClock, reasonById, empty, normalize, merge, same, rename, addDays, isSchoolDay, setSchoolDay, months, monthTitle, defaultMonth, monthColumns, schoolDays,
     getMark, setMark, markCode, monthStats, fixName, classGenitive, sortedClasses, sortedStudents, addClass, addStudent,
     removeStudent, removeClass, parseTemplate, importClasses, alerts, alertText, documentXml, docxFiles, fileName, plural,
-    parseReply,
+    parseReply, parseBirthdays, addBirthdays, removeBirthday, nextBirthday, upcomingBirthdays, birthdayText,
   };
 }));

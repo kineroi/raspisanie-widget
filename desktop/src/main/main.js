@@ -15,6 +15,7 @@ const analysis = require('./analysis');
 const attestation = require('./attestation');
 const attendance = require('./attendance');
 const marks = require('./marks');
+const birthdays = require('./birthdays');
 const digest = require('./digest');
 const L = require('../shared/logic');
 
@@ -87,6 +88,8 @@ function snapshot() {
     update: updater.getState(),
     attendanceAlerts: attendance.alerts(),
     attendanceReady: attendance.hasClasses(),
+    birthdays: birthdays.snapshot(),
+    birthdayAlertsOn: store.get('birthdayAlerts', true),
   };
 }
 
@@ -240,6 +243,32 @@ function openHomework(date, start) {
   w.loadFile(path.join(RENDERER, 'homework.html'), { query: { date, start } });
   homeworkWins.set(key, w);
   w.on('closed', () => homeworkWins.delete(key));
+}
+
+let birthdaysWin = null;
+
+function openBirthdays() {
+  if (birthdaysWin && !birthdaysWin.isDestroyed()) {
+    birthdaysWin.show();
+    birthdaysWin.focus();
+    return;
+  }
+  birthdaysWin = new BrowserWindow({
+    width: 620,
+    height: 760,
+    minWidth: 460,
+    minHeight: 420,
+    title: 'Дни рождения',
+    backgroundColor: windowBackground(),
+    icon: path.join(ASSETS, 'icon.png'),
+    autoHideMenuBar: true,
+    webPreferences: webPrefs(),
+  });
+  birthdaysWin.removeMenu();
+  birthdaysWin.loadFile(path.join(RENDERER, 'birthdays.html'));
+  birthdaysWin.on('closed', () => {
+    birthdaysWin = null;
+  });
 }
 
 const marksWins = new Map();
@@ -599,6 +628,24 @@ ipcMain.handle('att-open-root', () => {
   return true;
 });
 ipcMain.handle('open-attendance', () => openAttendance());
+ipcMain.handle('open-birthdays', () => openBirthdays());
+ipcMain.handle('bd-list', () => birthdays.list());
+ipcMain.handle('bd-import', (_e, text) => {
+  const r = birthdays.importText(String(text || ''));
+  broadcast();
+  syncAttendanceSoon();
+  if (!SMOKE) birthdays.check(openBirthdays);
+  return r;
+});
+ipcMain.handle('bd-remove', (_e, id) => {
+  birthdays.remove(id);
+  broadcast();
+  syncAttendanceSoon();
+});
+ipcMain.handle('set-birthday-alerts', (_e, on) => {
+  store.set({ birthdayAlerts: !!on });
+  broadcast();
+});
 ipcMain.handle('aj-load', () => {
   syncAttendance();
   return { journal: attendance.load(), status: attendance.syncStatus() };
@@ -795,6 +842,11 @@ app.whenReady().then(() => {
   // посещаемость: отметки с телефона приходят через Google Диск
   syncAttendance();
   setInterval(syncAttendance, 60 * 1000);
+  // дни рождения: проверяем часто — компьютер могут включить или разбудить в любое время
+  if (!SMOKE) {
+    birthdays.check(openBirthdays);
+    setInterval(() => birthdays.check(openBirthdays), 5 * 60 * 1000);
+  }
   updater.start(() => broadcast());
   digest.start({
     isEnabled: () => !SMOKE && store.get('gradeAlerts', true),
@@ -854,6 +906,7 @@ function smokeAttendance() {
   const a = T.addStudent(c, 'ученик первый');
   T.addStudent(c, 'УЧЕНИК ВТОРОЙ');
   for (const d of T.schoolDays(j, '2026-11').slice(0, 4)) T.setMark(j, d, a.id, 'sick');
+  T.addBirthdays(j, T.parseBirthdays('УЧЕНИК ПЕРВЫЙ 05.01.2014').items);
   attendance.save(j);
 }
 
@@ -874,6 +927,15 @@ function startSmoke() {
   setTimeout(() => openGrades(), 4500);
   setTimeout(() => openAnalysis(), 4700);
   setTimeout(() => openAttendance(), 4800);
+  setTimeout(() => openBirthdays(), 4850);
+  setTimeout(async () => {
+    try {
+      const rows = await birthdaysWin.webContents.executeJavaScript("document.querySelectorAll('.person').length", true);
+      if (rows !== 1) smokeErrors.push(`birthdays window: ${rows} rows`);
+    } catch (err) {
+      smokeErrors.push(`birthdays check: ${err.stack || err}`);
+    }
+  }, 7200);
   // окно оценок без BilimClass: должно открыться и спокойно сказать, что журнал недоступен
   setTimeout(() => openMarks('2026-10-19', '09:00'), 4900);
   setTimeout(async () => {

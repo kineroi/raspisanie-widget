@@ -79,6 +79,7 @@ public class MainActivity extends Activity {
         askNotificationPermission();
         loadRisk();
         syncAttendance();
+        Birthdays.check(this);
         handler.removeCallbacks(minuteTick);
         handler.postDelayed(minuteTick, 60_000);
     }
@@ -172,6 +173,9 @@ public class MainActivity extends Activity {
         android.widget.CheckBox gcb = checkBox("Группа риска (пн) и контроль конца четверти", Digest.enabled(this));
         gcb.setOnCheckedChangeListener((v, on) -> Digest.setEnabled(this, on));
         card.addView(gcb);
+        android.widget.CheckBox bcb = checkBox("Дни рождения учеников (в 8 утра)", Birthdays.enabled(this));
+        bcb.setOnCheckedChangeListener((v, on) -> Birthdays.setEnabled(this, on));
+        card.addView(bcb);
         if (Reminders.enabled(this) && !notificationsAllowed()) {
             card.addView(text("Уведомления выключены в настройках Android — напоминания не будут видны.",
                     13, c(R.color.a_red), 400));
@@ -503,6 +507,16 @@ public class MainActivity extends Activity {
                 warn > 0 ? warn + " " + plural(warn, "предупреждение", "предупреждения", "предупреждений") : "Посещаемость",
                 warn > 0 ? "болеют или прогулы" : noLists ? "загрузить списки" : "отметить сегодня",
                 () -> startActivity(new Intent(this, AttendanceActivity.class))));
+
+        // дни рождения: кто сегодня или ближайший
+        List<Attendance.Birthday> bd = Attendance.upcomingBirthdays(journal, today);
+        boolean bdToday = !bd.isEmpty() && bd.get(0).daysLeft == 0;
+        tiles.addView(tile(R.color.a_primary, R.color.a_primary_soft, R.drawable.ic_app_cake,
+                bdToday ? "День рождения" : "Дни рождения",
+                bd.isEmpty() ? "добавить список"
+                        : bdToday ? "сегодня: " + bd.get(0).name.split(" ")[0]
+                        : "ближайший " + Attendance.dm(bd.get(0).next.toString()),
+                () -> startActivity(new Intent(this, BirthdaysActivity.class))));
 
         tiles.addView(tile(R.color.a_primary, R.color.a_primary_soft, R.drawable.ic_app_medal,
                 "Аттестация", "грамоты на Диск",
@@ -1108,6 +1122,7 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             try {
                 if (Attendance.sync(app)) runOnUiThread(() -> {
+                    Birthdays.check(app);
                     if (!isFinishing()) render();
                 });
             } catch (java.io.IOException ignored) {

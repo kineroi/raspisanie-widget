@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Дни рождения</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="theme.css">
+  <script src="theme.js"></script>
+  <style>
+    .page { padding: 20px 24px 24px; }
+    h1 { color: var(--text); font-size: 22px; font-weight: 500; margin: 0 0 2px; }
+    .card { background: var(--surface); border-radius: 8px; padding: 14px 16px; margin-top: 14px; }
+    textarea { width: 100%; min-height: 110px; margin: 8px 0; resize: vertical; background: var(--bg); }
+    .person { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+    .person:first-child { border-top: 0; }
+    .person .name { flex: 1; min-width: 0; color: var(--text); }
+    .person .when { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .person.today .when { color: var(--primary); font-weight: 600; }
+    .person button { padding: 3px 10px; }
+    #message { margin-top: 8px; font-size: 13px; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Дни рождения</h1>
+    <div class="muted small">В день рождения в 8 утра придёт уведомление. Список хранится на этом компьютере и в вашем файле синхронизации на Google Диске — так он попадает на телефон.</div>
+    <div class="card">
+      <b>Добавить список</b>
+      <div class="muted small">Скопируйте строки из Excel или Word: в каждой строке ФИО и дата рождения (ДД.ММ.ГГГГ).</div>
+      <textarea id="text" placeholder="ИВАНОВ&#9;ИВАН&#9;ИВАНОВИЧ&#9;29.04.2013"></textarea>
+      <button id="add" class="primary">Добавить</button>
+      <div id="message"></div>
+    </div>
+    <div class="card" id="list"></div>
+  </div>
+  <script src="birthdays.js"></script>
+</body>
+</html>

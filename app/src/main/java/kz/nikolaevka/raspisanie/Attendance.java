@@ -138,6 +138,12 @@ final class Attendance {
             }
             o.remove("offDays");
             o.remove("onDays");
+            JSONArray birthdays = o.optJSONArray("birthdays");
+            if (birthdays == null) o.put("birthdays", birthdays = new JSONArray());
+            for (int i = 0; i < birthdays.length(); i++) {
+                JSONObject b = birthdays.optJSONObject(i);
+                if (b != null && !b.has("t")) b.put("t", 0L);
+            }
         } catch (JSONException ignored) {
             // ключи — обычные строки, ошибки не будет
         }
@@ -531,7 +537,16 @@ final class Attendance {
                 JSONObject sd = src.optJSONObject("days");
                 for (String d : keys(sd)) days.put(d, newer(days.optJSONObject(d), sd.optJSONObject(d)));
             }
-            JSONObject j = new JSONObject().put("classes", classes).put("marks", marks).put("days", days);
+            Map<String, JSONObject> birthdayMap = new TreeMap<>();
+            for (JSONObject src : new JSONObject[]{x, y}) {
+                for (JSONObject b : list(src.optJSONArray("birthdays"))) {
+                    birthdayMap.put(b.optString("id"), newer(birthdayMap.get(b.optString("id")), b));
+                }
+            }
+            JSONArray birthdays = new JSONArray();
+            for (JSONObject b : birthdayMap.values()) birthdays.put(copy(b));
+            JSONObject j = new JSONObject().put("classes", classes).put("marks", marks).put("days", days)
+                    .put("birthdays", birthdays);
             dedupe(j);
             return j;
         } catch (JSONException e) {
@@ -804,6 +819,114 @@ final class Attendance {
         }
         return a.student + " (" + a.cls + "): " + a.count + " " + plural(a.count, "пропуск", "пропуска", "пропусков")
                 + " без уважительной причины за 30 дней, последний " + dm(a.last);
+    }
+
+    // ---------- Дни рождения (как в desktop/src/shared/attendance.js) ----------
+    // Синхронизируются вместе с журналом. id зависит только от ФИО и даты, поэтому один и тот же список,
+    // вставленный на компьютере и на телефоне, не задваивается.
+
+    private static final Pattern BIRTH_DATE = Pattern.compile("(\\d{1,2})[./-](\\d{1,2})[./-](\\d{4})");
+
+    static final class BirthdayList {
+        /** {ФИО, ГГГГ-ММ-ДД} */
+        final List<String[]> items = new ArrayList<>();
+        final List<String> bad = new ArrayList<>();
+    }
+
+    /** Текст из Excel или Word: в строке ФИО и дата ДД.ММ.ГГГГ. */
+    static BirthdayList parseBirthdays(String text) {
+        BirthdayList r = new BirthdayList();
+        for (String raw : (text == null ? "" : text).split("\\r?\\n")) {
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+            Matcher m = BIRTH_DATE.matcher(line);
+            String date = "";
+            String rest = line;
+            if (m.find()) {
+                String candidate = m.group(3) + "-" + (m.group(2).length() == 1 ? "0" : "") + m.group(2)
+                        + "-" + (m.group(1).length() == 1 ? "0" : "") + m.group(1);
+                try {
+                    date = LocalDate.parse(candidate).toString();
+                } catch (RuntimeException e) {
+                    date = "";
+                }
+                rest = line.substring(0, m.start()) + " " + line.substring(m.end());
+            }
+            String name = fixName(rest.replaceFirst("^\\s*\\d+[.)]?\\s+", ""));
+            if (!name.isEmpty() && !date.isEmpty()) r.items.add(new String[]{name, date});
+            else r.bad.add(line);
+        }
+        return r;
+    }
+
+    /** Добавить в журнал; удалённого раньше вернуть. Возвращает {добавлено, уже были}. */
+    static int[] addBirthdays(JSONObject j, List<String[]> items) {
+        int added = 0, known = 0;
+        JSONArray a = j.optJSONArray("birthdays");
+        for (String[] it : items) {
+            String id = it[0].toLowerCase(RU).replace('ё', 'е') + "|" + it[1];
+            JSONObject cur = null;
+            for (JSONObject b : list(a)) if (id.equals(b.optString("id"))) cur = b;
+            if (cur != null && !cur.optBoolean("deleted")) {
+                known++;
+            } else if (cur != null) {
+                touch(cur, "deleted", false);
+                added++;
+            } else {
+                try {
+                    a.put(new JSONObject().put("id", id).put("name", it[0]).put("date", it[1]).put("t", clock.getAsLong()));
+                    added++;
+                } catch (JSONException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+        return new int[]{added, known};
+    }
+
+    static void removeBirthday(JSONObject j, String id) {
+        for (JSONObject b : list(j.optJSONArray("birthdays"))) if (id.equals(b.optString("id"))) touch(b, "deleted", true);
+    }
+
+    /** Ближайшая дата праздника не раньше сегодня. 29 февраля в невисокосный год — 28-го. */
+    static LocalDate nextBirthday(LocalDate birth, LocalDate today) {
+        LocalDate d = birth.withYear(today.getYear());
+        return d.isBefore(today) ? birth.withYear(today.getYear() + 1) : d;
+    }
+
+    static final class Birthday {
+        String id, name;
+        LocalDate next;
+        int age, daysLeft;
+    }
+
+    /** Все дни рождения по порядку от сегодня. */
+    static List<Birthday> upcomingBirthdays(JSONObject j, LocalDate today) {
+        List<Birthday> out = new ArrayList<>();
+        for (JSONObject b : list(j.optJSONArray("birthdays"))) {
+            if (b.optBoolean("deleted")) continue;
+            try {
+                LocalDate birth = LocalDate.parse(b.optString("date"));
+                Birthday x = new Birthday();
+                x.id = b.optString("id");
+                x.name = b.optString("name");
+                x.next = nextBirthday(birth, today);
+                x.age = x.next.getYear() - birth.getYear();
+                x.daysLeft = (int) java.time.temporal.ChronoUnit.DAYS.between(today, x.next);
+                out.add(x);
+            } catch (RuntimeException ignored) {
+                // повреждённая запись — пропускаем
+            }
+        }
+        Collator col = Collator.getInstance(RU);
+        out.sort((p, q) -> p.daysLeft != q.daysLeft ? p.daysLeft - q.daysLeft : col.compare(p.name, q.name));
+        return out;
+    }
+
+    /** «Иванов Иван, 13 лет». */
+    static String birthdayText(Birthday b) {
+        String[] p = b.name.split(" ");
+        return (p.length > 1 ? p[0] + " " + p[1] : p[0]) + ", " + b.age + " " + plural(b.age, "год", "года", "лет");
     }
 
     // ---------- Ответ из WhatsApp → отметки (как parseReply в desktop/src/shared/attendance.js) ----------

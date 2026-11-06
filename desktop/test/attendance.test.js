@@ -243,3 +243,54 @@ test('ответ из WhatsApp: причина перед списком', () =>
   const r = T.parseReply(school(), '4 класс\nБолеют:\nЛис Кирилл\nИванова');
   assert.deepEqual(pick(r), [['Лис Кирилл', '4 класс', 'sick'], ['Иванова Анна', '4 класс', 'sick']]);
 });
+
+test('дни рождения: разбор таблицы, ФИО, плохие строки', () => {
+  const r = T.parseBirthdays('СИДОРОВ\tПЁТР\tИВАНОВИЧ\t29.04.2013\r\n\nКотова Анна 5.1.2014\nБез даты Ученик\nЛис Кирилл 31.02.2013');
+  assert.deepEqual(r.items, [
+    { name: 'Сидоров Пётр Иванович', date: '2013-04-29' },
+    { name: 'Котова Анна', date: '2014-01-05' },
+  ]);
+  assert.deepEqual(r.bad, ['Без даты Ученик', 'Лис Кирилл 31.02.2013']);
+});
+
+test('дни рождения: порядок от сегодня, возраст, 29 февраля', () => {
+  const j = T.empty();
+  T.addBirthdays(j, [
+    { name: 'Сидоров Пётр', date: '2013-11-06' },
+    { name: 'Котова Анна', date: '2014-01-05' },
+    { name: 'Лис Кирилл', date: '2012-02-29' },
+    { name: 'Прошлый Ученик', date: '2013-11-01' },
+  ]);
+  const up = T.upcomingBirthdays(j, '2026-11-06');
+  assert.deepEqual(up.map((b) => [b.name, b.next, b.age, b.daysLeft]), [
+    ['Сидоров Пётр', '2026-11-06', 13, 0],
+    ['Котова Анна', '2027-01-05', 13, 60],
+    ['Лис Кирилл', '2027-02-28', 15, 114],
+    ['Прошлый Ученик', '2027-11-01', 14, 360],
+  ]);
+  assert.equal(T.birthdayText(up[0]), 'Сидоров Пётр, 13 лет');
+  assert.equal(T.nextBirthday('2012-02-29', '2028-01-01'), '2028-02-29');
+});
+
+test('дни рождения: один список на двух устройствах не задваивается, удаление синхронизируется', () => {
+  let now = 1000;
+  T.setClock(() => now);
+  try {
+    const list = [{ name: 'Сидоров Пётр', date: '2013-04-29' }];
+    const pc = T.empty();
+    const phone = T.empty();
+    assert.deepEqual(T.addBirthdays(pc, list), { added: 1, known: 0 });
+    assert.deepEqual(T.addBirthdays(pc, list), { added: 0, known: 1 });
+    now = 2000;
+    T.addBirthdays(phone, list);
+    const m = T.merge(pc, phone);
+    assert.equal(T.upcomingBirthdays(m, '2026-11-06').length, 1);
+    now = 3000;
+    T.removeBirthday(pc, pc.birthdays[0].id);
+    const m2 = T.merge(pc, m);
+    assert.equal(T.upcomingBirthdays(m2, '2026-11-06').length, 0);
+    assert.ok(T.same(T.merge(m2, phone), T.merge(phone, m2)));
+  } finally {
+    T.setClock(() => Date.now());
+  }
+});
