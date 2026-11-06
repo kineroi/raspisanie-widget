@@ -539,12 +539,12 @@ final class Attendance {
             }
             Map<String, JSONObject> birthdayMap = new TreeMap<>();
             for (JSONObject src : new JSONObject[]{x, y}) {
-                for (JSONObject b : list(src.optJSONArray("birthdays"))) {
-                    birthdayMap.put(b.optString("id"), newer(birthdayMap.get(b.optString("id")), b));
+                for (JSONObject bd : list(src.optJSONArray("birthdays"))) {
+                    birthdayMap.put(bd.optString("id"), newer(birthdayMap.get(bd.optString("id")), bd));
                 }
             }
             JSONArray birthdays = new JSONArray();
-            for (JSONObject b : birthdayMap.values()) birthdays.put(copy(b));
+            for (JSONObject bd : birthdayMap.values()) birthdays.put(copy(bd));
             JSONObject j = new JSONObject().put("classes", classes).put("marks", marks).put("days", days)
                     .put("birthdays", birthdays);
             dedupe(j);
