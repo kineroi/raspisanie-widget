@@ -147,7 +147,8 @@ public class MainActivity extends Activity {
 
     /** На Android 13+ уведомления нужно разрешить; спрашиваем один раз за запуск. */
     private void askNotificationPermission() {
-        if (askedNotifications || !Reminders.enabled(this) || notificationsAllowed()) return;
+        if (askedNotifications || (!Reminders.enabled(this) && !MealReminder.enabled(this))
+                || notificationsAllowed()) return;
         askedNotifications = true;
         requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 5);
     }
@@ -258,6 +259,47 @@ public class MainActivity extends Activity {
         }
         Button test = button("Проверить сейчас", false);
         test.setOnClickListener(v -> DailyMessage.show(this));
+        card.addView(test, buttonParams(ViewGroup.LayoutParams.WRAP_CONTENT, 6));
+        return card;
+    }
+
+    /** Бесплатное питание: по учебным дням напоминание отсканировать QR-коды учащихся. */
+    private View mealCard() {
+        LinearLayout card = card();
+        card.addView(text("Бесплатное питание", 16, c(R.color.a_text), 500));
+        card.addView(text("В учебные дни в это время придёт напоминание: «" + MealReminder.TEXT + "» "
+                + "Каникулы и праздники пропускаются.", 13, c(R.color.a_muted), 400));
+        android.widget.CheckBox cb = checkBox("Напоминать по учебным дням", MealReminder.enabled(this));
+        cb.setOnCheckedChangeListener((v, on) -> {
+            MealReminder.setEnabled(this, on);
+            if (on && !notificationsAllowed()) {
+                askedNotifications = false;
+                askNotificationPermission();
+            }
+            render();
+        });
+        card.addView(cb);
+        if (!MealReminder.enabled(this)) return card;
+
+        java.time.LocalTime t = MealReminder.time(this);
+        Button time = button("Время: " + t, false);
+        time.setOnClickListener(v -> new android.app.TimePickerDialog(this, (p, h, m) -> {
+            MealReminder.setTime(this, java.time.LocalTime.of(h, m));
+            render();
+        }, t.getHour(), t.getMinute(), true).show());
+        card.addView(time, buttonParams(ViewGroup.LayoutParams.MATCH_PARENT, 10));
+
+        LocalDateTime next = DailyMessage.nextAt(LocalDateTime.now(), t, Attendance.load(this));
+        card.addView(text(next == null ? "Учебный год закончился — напоминаний не будет."
+                        : "Следующее: " + next.toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern(
+                        "EEEE, d MMMM", new java.util.Locale("ru"))) + " в " + t,
+                13, c(R.color.a_muted), 400));
+        if (!notificationsAllowed()) {
+            card.addView(text("Уведомления выключены в настройках Android — напоминание не будет видно.",
+                    13, c(R.color.a_red), 400));
+        }
+        Button test = button("Проверить сейчас", false);
+        test.setOnClickListener(v -> MealReminder.show(this));
         card.addView(test, buttonParams(ViewGroup.LayoutParams.WRAP_CONTENT, 6));
         return card;
     }
@@ -810,6 +852,7 @@ public class MainActivity extends Activity {
         col.addView(aiCard());
         col.addView(remindersCard());
         col.addView(whatsAppCard());
+        col.addView(mealCard());
 
         if (AppWidgetManager.getInstance(this).isRequestPinAppWidgetSupported()) {
             Button add = button("Добавить виджет на главный экран", false);

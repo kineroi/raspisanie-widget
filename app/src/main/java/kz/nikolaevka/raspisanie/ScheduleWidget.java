@@ -79,6 +79,7 @@ public class ScheduleWidget extends AppWidgetProvider {
         Digest.schedule(context);
         DailyMessage.schedule(context);
         Birthdays.schedule(context);
+        MealReminder.schedule(context);
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         int[] ids = manager.getAppWidgetIds(new ComponentName(context, ScheduleWidget.class));
         if (ids == null || ids.length == 0) return;
